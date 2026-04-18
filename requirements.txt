@@ -12,3 +12,7 @@ pydantic
 langchain
 langchain-anthropic
 langchain-groq
+python-jose[cryptography]
+passlib[bcrypt]
+sqlalchemy
+email-validator
