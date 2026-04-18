@@ -4,3 +4,10 @@ sounddevice
 soundfile
 pynput
 python-dotenv
+fastapi
+uvicorn
+anthropic
+python-multipart
+pydantic
+langchain
+langchain-anthropic
