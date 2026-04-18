@@ -63,7 +63,31 @@ STRICT: (exact match)
 
 SCORE_PROMPT = """
 You are a JD quality evaluator.
-Given transcript and generated JD, return ONLY this JSON:
+Given the transcript and generated JD, return your evaluation in EXACTLY this format:
+
+=== JD QUALITY SCORING REPORT ===
+Position Evaluated  : [job_title]
+Overall Score       : [score]%
+Transcript Fidelity : [fidelity]%
+Completeness Score  : [completeness]%
+
+--- SECTION BREAKDOWN ---
+Role Summary        : [score]%
+Responsibilities    : [score]%
+Required Skills     : [score]%
+Qualifications      : [score]%
+Company Context     : [score]%
+
+--- MISSING INFO ---
+[list each missing item with ✘ prefix]
+
+--- BIAS FLAGS ---
+[list bias detected with ✘ prefix, or write: ✔ None detected]
+
+--- RECOMMENDATIONS ---
+[list each recommendation with → prefix]
+
+--- JSON ---
 {
   "overall_score": <0-100>,
   "transcript_fidelity_score": <0-100>,
@@ -75,11 +99,10 @@ Given transcript and generated JD, return ONLY this JSON:
     "qualifications": <0-100>,
     "company_context": <0-100>
   },
-  "missing_critical_info": ["item1"],
-  "bias_flags": ["item1"],
-  "recommendations": ["item1"]
+  "missing_critical_info": [],
+  "bias_flags": [],
+  "recommendations": []
 }
-No explanation. Only JSON.
 """
 
 TITLE_EXTRACTION_PROMPT = """

@@ -3,7 +3,6 @@ import os
 import sys
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from prompts import SCORE_PROMPT
@@ -21,17 +20,22 @@ def score_jd_quality(transcript: str, jd: str) -> dict:
         temperature=0.0,
     )
 
-    prompt = PromptTemplate(
-        input_variables=["transcript", "jd"],
-        template=SCORE_PROMPT + "\n\nTRANSCRIPT:\n{transcript}\n\nJD:\n{jd}",
-    )
+    user_message = f"{SCORE_PROMPT}\n\nTRANSCRIPT:\n{transcript}\n\nJD:\n{jd}"
 
-    chain = prompt | llm
-
-    response = chain.invoke({"transcript": transcript, "jd": jd})
+    response = llm.invoke([{"role": "user", "content": user_message}])
     result = response.content.strip()
 
+    if "--- JSON ---" in result:
+        parts = result.split("--- JSON ---", 1)
+        report = parts[0].strip()
+        json_text = parts[1].strip()
+    else:
+        report = result
+        json_text = ""
+
     try:
-        return json.loads(result)
+        scores = json.loads(json_text)
     except json.JSONDecodeError:
-        return {"error": "Could not parse score", "raw": result}
+        scores = {"error": "Could not parse scores", "raw": json_text}
+
+    return {"report": report, "scores": scores}
