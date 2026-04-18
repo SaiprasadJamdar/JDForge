@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { RichTextEditor } from "@/components/builder/rich-text-editor"
+import { FloatingToolbar } from "@/components/builder/floating-toolbar"
 import { 
   CheckCircle2, Circle, ChevronUp, MoreHorizontal, ChevronDown, ChevronRight, Bold, Italic, Underline, 
   Send, Code2, Database, Layout, Layers, Terminal, Server, Boxes, Plus, Mic, Headphones, ArrowUp, Pencil, CheckCircle, ArrowRight
@@ -23,6 +23,10 @@ export default function BuilderPage() {
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [techRolesOpen, setTechRolesOpen] = useState(true)
+
+  // Toolbar state
+  const [toolbarVisible, setToolbarVisible] = useState(false)
+  const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 })
 
   const router = useRouter()
   const { jds, updateJD, markAsFinalized, isLoaded } = useJDs()
@@ -55,6 +59,45 @@ export default function BuilderPage() {
   const handleMarkAsDoneAndSource = () => {
     markAsFinalized(currentJD.id)
     router.push('/sourcing')
+  }
+
+  // Text selection and formatting handlers
+  const handleTextSelection = () => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().length > 0) {
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      setToolbarPosition({
+        top: rect.top + window.scrollY - 50,
+        left: rect.left + rect.width / 2 - 60,
+      })
+      setToolbarVisible(true)
+    } else {
+      setToolbarVisible(false)
+    }
+  }
+
+  const applyFormat = (tag: "b" | "i" | "u") => {
+    const selection = window.getSelection()
+    if (!selection || !selection.rangeCount || selection.toString().length === 0) {
+      setToolbarVisible(false)
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const span = document.createElement(tag)
+
+    try {
+      range.surroundContents(span)
+    } catch (e) {
+      const fragment = range.extractContents()
+      const span = document.createElement(tag)
+      span.appendChild(fragment)
+      range.insertNode(span)
+    }
+
+    selection.removeAllRanges()
+    setToolbarVisible(false)
   }
 
   const templates = [
@@ -157,7 +200,7 @@ export default function BuilderPage() {
 
             {/* Document Content */}
             <div className="flex-1 px-8 pb-32">
-              <div className="max-w-3xl mx-auto space-y-8 pb-10">
+              <div className="max-w-3xl mx-auto space-y-8 pb-10" onMouseUp={handleTextSelection}>
                 
                 {activeTab === "Clean Transcript" ? (
                   <div className="text-[15px] text-slate-700 dark:text-slate-300 leading-relaxed space-y-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
@@ -438,6 +481,15 @@ export default function BuilderPage() {
         </div>
 
       </div>
+
+      {/* Floating Toolbar */}
+      <FloatingToolbar
+        isVisible={toolbarVisible}
+        position={toolbarPosition}
+        onBold={() => applyFormat("b")}
+        onItalic={() => applyFormat("i")}
+        onUnderline={() => applyFormat("u")}
+      />
 
       {/* FLOATING ChatGPT Style Chat Input */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[700px] px-4 z-50">
