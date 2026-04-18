@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { RichTextEditor } from "@/components/builder/rich-text-editor"
 import { 
   CheckCircle2, Circle, ChevronUp, MoreHorizontal, ChevronDown, ChevronRight, Bold, Italic, Underline, 
   Send, Code2, Database, Layout, Layers, Terminal, Server, Boxes, Plus, Mic, Headphones, ArrowUp, Pencil, CheckCircle, ArrowRight
@@ -18,7 +19,6 @@ export default function BuilderPage() {
   const [activeTab, setActiveTab] = useState("Final JD")
   const [activeJDId, setActiveJDId] = useState(1)
   const [activeTemplateId, setActiveTemplateId] = useState(1)
-  const [formatting, setFormatting] = useState({ bold: false, italic: false, underline: false, font: 'sans' })
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -116,27 +116,11 @@ export default function BuilderPage() {
           <div className="bg-white dark:bg-slate-900 border border-transparent shadow-[0_4px_20px_rgb(0,0,0,0.03)] rounded-2xl overflow-hidden">
             <div className="p-4 flex items-center justify-between border-b border-slate-50 dark:border-slate-800">
               <h3 className="font-semibold text-slate-800 dark:text-slate-200">Text Formatting</h3>
-              <button 
-                onClick={() => setFormatting({ bold: false, italic: false, underline: false, font: 'sans' })}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 transition-colors"
-              >
-                Reset
-              </button>
             </div>
-            <div className="p-3 flex items-center gap-2">
-              <button onClick={() => setFormatting(p => ({...p, bold: !p.bold}))} className={`p-1.5 rounded font-serif font-bold transition-colors ${formatting.bold ? 'bg-slate-200 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>B</button>
-              <button onClick={() => setFormatting(p => ({...p, italic: !p.italic}))} className={`p-1.5 rounded font-serif italic transition-colors ${formatting.italic ? 'bg-slate-200 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>I</button>
-              <button onClick={() => setFormatting(p => ({...p, underline: !p.underline}))} className={`p-1.5 rounded font-serif underline transition-colors ${formatting.underline ? 'bg-slate-200 dark:bg-slate-800 text-blue-600 dark:text-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>U</button>
-              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
-              <select 
-                value={formatting.font}
-                onChange={(e) => setFormatting(p => ({...p, font: e.target.value}))}
-                className="bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none cursor-pointer max-w-[90px]"
-              >
-                <option value="sans" className="text-black">Standard</option>
-                <option value="serif" className="text-black">Serif</option>
-                <option value="mono" className="text-black">Handwriting</option>
-              </select>
+            <div className="p-3">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                ✨ Select text in the editor below and use the formatting buttons to apply <strong>Bold</strong>, <em>Italic</em>, or <u>Underline</u> formatting to just that text.
+              </p>
             </div>
           </div>
         </div>
@@ -173,7 +157,7 @@ export default function BuilderPage() {
 
             {/* Document Content */}
             <div className="flex-1 px-8 pb-32">
-              <div className={`max-w-3xl mx-auto space-y-8 pb-10 ${formatting.bold ? 'font-bold' : ''} ${formatting.italic ? 'italic' : ''} ${formatting.underline ? 'underline' : ''} ${formatting.font === 'serif' ? 'font-serif' : formatting.font === 'mono' ? 'font-mono' : 'font-sans'}`}>
+              <div className="max-w-3xl mx-auto space-y-8 pb-10">
                 
                 {activeTab === "Clean Transcript" ? (
                   <div className="text-[15px] text-slate-700 dark:text-slate-300 leading-relaxed space-y-4 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
