@@ -11,3 +11,4 @@ python-multipart
 pydantic
 langchain
 langchain-anthropic
+langchain-groq

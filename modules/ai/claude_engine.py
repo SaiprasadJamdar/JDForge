@@ -1,37 +1,34 @@
 import json
 import os
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
-from langchain.prompts import PromptTemplate
 import sys
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+from langchain.prompts import PromptTemplate
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from prompts import SCORE_PROMPT
 
 load_dotenv()
 
-def _llm():
-    return ChatAnthropic(
-        model="claude-sonnet-4-5",
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        max_tokens=1000
-    )
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 
 def score_jd_quality(transcript: str, jd: str) -> dict:
-    llm = _llm()
+    llm = ChatGroq(
+        model=GROQ_MODEL,
+        api_key=os.environ.get("GROQ_API_KEY"),
+        max_tokens=1000,
+        temperature=0.0,
+    )
 
     prompt = PromptTemplate(
         input_variables=["transcript", "jd"],
-        template=SCORE_PROMPT + "\n\nTRANSCRIPT:\n{transcript}\n\nJD:\n{jd}"
+        template=SCORE_PROMPT + "\n\nTRANSCRIPT:\n{transcript}\n\nJD:\n{jd}",
     )
 
     chain = prompt | llm
 
-    response = chain.invoke({
-        "transcript": transcript,
-        "jd": jd
-    })
-
+    response = chain.invoke({"transcript": transcript, "jd": jd})
     result = response.content.strip()
 
     try:
