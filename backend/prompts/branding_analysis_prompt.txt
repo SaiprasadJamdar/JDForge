@@ -1,0 +1,17 @@
+Analyze the attached Job Description template image.
+Your goal is to extract the visual branding and structural identity elements so they can be replicated exactly in a digital preview.
+
+Return a JSON object with the following fields:
+1. "primaryColor": (Hex code of the dominant brand color)
+2. "secondaryColor": (Hex code of the background/accent color)
+3. "fontFamily": (Either "sans" or "serif")
+4. "layoutType": ("boxed" if sections are in rounded containers/boxes, otherwise "standard")
+5. "metaBarStyle": ("horizontal-row" if Location/Experience are in a single bar, otherwise "grid")
+6. "logoAlignment": ("center" or "left")
+7. "h1Style": (Tailwind-like class string for the main JD title, e.g. "text-blue-600 uppercase font-bold text-center")
+8. "h3Style": (Styling for section headings, e.g. "text-blue-800 border-b border-blue-200")
+9. "pStyle": (Styling for paragraph text)
+10. "liStyle": (Bullet point styling)
+11. "accentBorderColor": (Hex code for borders/boxes if seen)
+
+Only return the JSON. No preamble.
