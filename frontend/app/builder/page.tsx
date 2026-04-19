@@ -5,7 +5,7 @@ import {
   CheckCircle2, Circle, ChevronDown, Code2, Mic, MicOff, Pencil,
   CheckCircle, ArrowRight, Loader2, Plus, Sparkles, Copy, Crown,
   Users, Mail, Send, Eye, EyeOff, Download, X, FileText,
-  Bold, Italic, Underline, Strikethrough, PlusCircle, RefreshCw
+  Bold, Italic, Underline, Strikethrough, PlusCircle, RefreshCw, Search
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useJDs } from "@/lib/useJDs"
@@ -776,16 +776,16 @@ function BuilderPageContent() {
                     const text = typeof content === "string" ? content : ""
                     const empty = !text.replace(/<[^>]*>/g, "").trim()
                     return (
-                      <div key={idx} className="group">
+                      <div key={idx} className={`group ${taggedSections.includes(title) ? "ring-2 ring-blue-400 bg-blue-50/50 rounded-2xl p-4 -mx-4 transition-all" : "transition-all p-4 -mx-4 border border-transparent"}`}>
                         <div className="flex items-center gap-3 mb-3 cursor-pointer select-none" onClick={() => setCollapsed(p => ({ ...p, [id]: !p[id] }))}>
                           <ChevronDown className={`w-3.5 h-3.5 text-blue-400 transition-transform ${collapsed[id] ? "-rotate-90" : ""}`} />
                           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{title}</h3>
-                          <div className="flex-1 h-0.5 bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-full" />
+                          <div className={`flex-1 h-0.5 rounded-full transition-colors ${taggedSections.includes(title) ? 'bg-blue-200' : 'bg-slate-50 group-hover:bg-slate-100'}`} />
                           {empty && <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">AI Fill</span>}
                         </div>
                         {!collapsed[id] && (
                           <div
-                            className="min-h-[32px] text-base leading-relaxed text-slate-700 outline-none focus:outline-none px-1 rounded-lg transition-all focus-within:ring-2 focus-within:ring-blue-100"
+                            className={`min-h-[32px] text-base leading-relaxed text-slate-700 outline-none focus:outline-none px-1 rounded-lg transition-all focus-within:ring-2 focus-within:ring-blue-100 ${taggedSections.includes(title) ? 'font-medium' : ''}`}
                             contentEditable
                             suppressContentEditableWarning
                             onBlur={e => handleUpdate(title, e.currentTarget.innerHTML)}
