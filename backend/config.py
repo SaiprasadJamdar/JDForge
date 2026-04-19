@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     # Zoho Recruit Mock API
     zoho_base_url: str = "https://zohorecruit.thankfulrock-f57331b9.centralindia.azurecontainerapps.io"
+    
+    # CORS Origin
+    frontend_url: str = "http://localhost:3000"
 
     # Email / OTP -- set via env vars (SMTP_USER, SMTP_PASSWORD)
     # Gmail: Account -> Security -> 2-Step Verification -> App Passwords

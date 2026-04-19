@@ -2,9 +2,13 @@
 venv
 __pycache__
 *.pyc
-raw_transcripts
-clean_transcripts
-jd_outputs
-search_queries
-recordings
-findings
+
+# Local Data (Root only)
+/raw_transcripts
+/clean_transcripts
+/jd_outputs
+/recordings
+/findings
+
+# Ignore specific search_queries DATA folder if it exists at root
+/search_queries

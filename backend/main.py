@@ -9,6 +9,8 @@ from backend.modules.search_queries.router import router as sq_router
 from backend.modules.transcripts.router import router as transcripts_router
 from backend.modules.notifications.router import router as notification_router
 
+from backend.config import get_settings
+
 app = FastAPI(
     title="JDForge API",
     description="Voice-to-JD Intelligence Engine — transcript ingestion, JD generation, and ATS candidate ranking.",
@@ -17,10 +19,20 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+settings = get_settings()
+
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+if settings.frontend_url and settings.frontend_url.rstrip("/") not in origins:
+    origins.append(settings.frontend_url.rstrip("/"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten for production
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
