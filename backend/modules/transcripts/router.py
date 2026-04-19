@@ -172,7 +172,7 @@ def upload_and_generate_jds(
         transcript_record = create_transcript(db, current_user.id, payload)
 
         # 5. Clean transcript
-        cleaned_record = clean_transcript(db, transcript_record, current_user.groq_api_key)
+        cleaned_record = clean_transcript(db, transcript_record, api_key)
 
         # 6 & 7. Split into roles + generate one JD per role
         jds = generate_and_save_jds(
