@@ -292,6 +292,8 @@ function BuilderPageContent() {
   const [inviteEmail, setInviteEmail] = useState("")
   const [isInviting, setIsInviting] = useState(false)
   const [showInviteForm, setShowInviteForm] = useState(false)
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false)
+  const [newSectionName, setNewSectionName] = useState("")
   // Capture the selection reference for toolbar formatting
   const savedRangeRef = useRef<{ node: Node; start: number; end: number } | null>(null)
 
@@ -384,9 +386,15 @@ function BuilderPageContent() {
   }, [chatInput, currentJD])
 
   const handleRefine = async () => {
-    if (!selectedJDId || !chatInput.trim()) return
+    if (!selectedJDId || !chatInput.trim() || !currentJD) return
     setIsRefining(true)
     try {
+      // Sync local UI edits to postgres before calling refine so backend has latest context
+      await fetchApi(`/jds/${currentJD.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content: JSON.stringify(currentJD.content) })
+      })
+
       const updated = await fetchApi(`/jds/${selectedJDId}/refine`, {
         method: "POST",
         body: JSON.stringify({ prompt: chatInput, tags: taggedSections })
@@ -800,17 +808,17 @@ function BuilderPageContent() {
                         </div>
                         {!collapsed[id] && (
                           <div
-                            className={`min-h-[32px] text-base leading-relaxed text-slate-700 outline-none focus:outline-none px-1 rounded-lg transition-all focus-within:ring-2 focus-within:ring-blue-100 ${taggedSections.includes(title) ? 'font-medium' : ''}`}
+                            className={`min-h-[32px] text-base leading-relaxed text-slate-700 outline-none focus:outline-none px-1 rounded-lg transition-all focus-within:ring-2 focus-within:ring-blue-100 ${taggedSections.includes(title) ? 'font-medium' : ''} empty:before:content-['Type_or_use_AI...'] empty:before:text-slate-300`}
                             contentEditable
                             suppressContentEditableWarning
                             onBlur={e => handleUpdate(title, e.currentTarget.innerHTML)}
-                            dangerouslySetInnerHTML={{ __html: text }}
+                            dangerouslySetInnerHTML={{ __html: text || "<br/>" }}
                           />
                         )}
                       </div>
                     )
                   })}
-                  <button onClick={() => { const n = prompt("Section name:"); if (n) { handleUpdate(n, ""); toast.success(`Added: ${n}`) } }}
+                  <button onClick={() => setShowAddSectionModal(true)}
                     className="w-full py-5 border-2 border-dashed border-slate-100 rounded-2xl text-slate-300 hover:text-blue-400 hover:border-blue-100 transition-all font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2">
                     <PlusCircle className="w-4 h-4" /> Add Custom Section
                   </button>
@@ -991,6 +999,56 @@ function BuilderPageContent() {
           )
         })()}
       </div>
+
+      {showAddSectionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-[400px] bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-sm font-black text-slate-800 mb-2">Add Custom Section</h3>
+            <p className="text-xs text-slate-500 mb-5">Enter a clear, descriptive title for your new section.</p>
+            
+            <input
+              autoFocus
+              value={newSectionName}
+              onChange={e => setNewSectionName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newSectionName.trim()) {
+                  handleUpdate(newSectionName.trim(), "")
+                  toast.success(`Added: ${newSectionName.trim()}`)
+                  setShowAddSectionModal(false)
+                  setNewSectionName("")
+                }
+                if (e.key === 'Escape') {
+                  setShowAddSectionModal(false)
+                  setNewSectionName("")
+                }
+              }}
+              placeholder="e.g., About Company..."
+              className="w-full bg-slate-50 border border-slate-200 text-sm font-medium text-slate-800 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:bg-white transition-all mb-6 placeholder:font-normal"
+            />
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowAddSectionModal(false); setNewSectionName("") }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!newSectionName.trim()}
+                onClick={() => {
+                  handleUpdate(newSectionName.trim(), "")
+                  toast.success(`Added: ${newSectionName.trim()}`)
+                  setShowAddSectionModal(false)
+                  setNewSectionName("")
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-black text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-500/20"
+              >
+                Add Section
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }
