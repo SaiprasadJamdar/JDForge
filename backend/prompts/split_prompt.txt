@@ -1,0 +1,17 @@
+Analyze this hiring conversation transcript and identify the distinct JOB ROLES being actively recruited for.
+
+STRICT RULES:
+1. ONLY split into multiple roles if the transcript clearly describes different sets of responsibilities for different hiring targets.
+2. DO NOT create roles for stakeholders, management, or experience levels mentioned in passing (e.g., "Upper management expects...", "Interns will...", "Senior leadership said...").
+3. If the entire conversation is about one role (even if complex), return ONLY one role in the list.
+4. If only one role is discussed, find its most accurate professional title from the technical requirements (e.g., "Full-Stack Developer") rather than generic nouns.
+
+Return STRICTLY raw JSON:
+{
+  "roles": [
+    {
+      "detected_role": "Professional Job Title (Infer from context if ambiguous)",
+      "transcript_segment": "All context relevant to this role."
+    }
+  ]
+}

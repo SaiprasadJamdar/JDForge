@@ -1,0 +1,2 @@
+Extract the primary Job Title from this Job Description.
+Output ONLY the job title as a short string (2-4 words). Nothing else. No quotes.
