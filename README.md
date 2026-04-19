@@ -7,10 +7,7 @@
 
 <a href="https://jd-forge.vercel.app/">
   <img src="https://img.shields.io/badge/🚀%20Live%20Demo-jd--forge.vercel.app-6366f1?style=for-the-badge&logoColor=white" />
-</a>
-&nbsp;
-<a href="https://github.com/SaiprasadJamdar/JDForge">
-</a>
+
 
 <br/>
 
@@ -114,6 +111,14 @@ JDForge uses a modern **Next.js 16 + FastAPI** stack with a bring-your-own-key m
 
 ## 📊 System Diagrams
 
+### 🏛️ System Architecture
+
+<div align="center">
+  <img src="./architecture.png" width="65%" alt="JDForge System Architecture" />
+</div>
+
+---
+
 <details>
 <summary><b>🔄 &nbsp;Diagram 1 — JD Generation Flow</b></summary>
 <br/>
@@ -212,6 +217,77 @@ sequenceDiagram
 ```
 
 </details>
+
+---
+
+## 📐 Scoring Criteria
+
+### 🧠 JD Quality Score — LLM Evaluation
+
+When a user clicks **Score Quality**, the cleaned transcript and the generated JD are sent together to LLaMA 3.3 70B. The model compares them and returns structured scores — no hardcoded rules, pure AI judgment.
+
+**Input sent to LLaMA:**
+```
+TRANSCRIPT: <cleaned source transcript>
+JD:         <generated job description>
+```
+
+**What gets scored:**
+
+| Metric | Description |
+|--------|-------------|
+| **Overall Score** | Composite quality of the entire JD (0–100%) |
+| **Transcript Fidelity** | How faithfully the JD reflects what was actually said in the transcript |
+| **Completeness** | Whether all expected JD sections are present and well-filled |
+| **Role Summary** | Clarity and accuracy of the job summary section |
+| **Responsibilities** | Quality and coverage of the responsibilities listed |
+| **Required Skills** | Accuracy of skills extracted from the transcript |
+| **Qualifications** | Quality of the qualifications/education section |
+| **Company Context** | Whether company information is adequately captured |
+
+**Additional outputs:**
+- **Missing Info** — items mentioned in the transcript but absent from the JD
+- **Bias Flags** — gendered or exclusionary language detected
+- **Recommendations** — specific actionable improvements
+
+> Scores are parsed from the `--- JSON ---` block in the LLM response and saved to the `jds.quality_score` JSONB column in PostgreSQL.
+
+---
+
+### 🎯 Candidate Match Score — Weighted ATS Engine
+
+When a user clicks **Rank Candidates**, every candidate from Zoho Recruit is scored against the JD using a deterministic weighted formula.
+
+**Step 1 — JD Parsing**
+
+LLaMA extracts structured hiring parameters from the JD:
+`required_skills` · `preferred_skills` · `role_title` · `optimum_experience`
+
+**Step 2 — Skill Matching (3 layers)**
+
+Each skill is checked with increasing flexibility:
+1. Exact normalized match (lowercase, punctuation stripped)
+2. Word-boundary regex match (`\b...\b`)
+3. Synonym expansion — e.g. `js → javascript`, `aws → amazon web services`, `ts → typescript`, `mongo → mongodb`
+
+> Soft skills (communication, leadership, teamwork, etc.) are automatically excluded.
+
+**Step 3 — Weighted Score Formula**
+
+| Component | Max Points | Logic |
+|-----------|-----------|-------|
+| **Required Skills** | **65** | `(matched / total) × 65` |
+| **Title Relevance** | **15** | Word-overlap ratio × 15 × `core_ratio` |
+| **Experience** | **5–10** | Exact match = 10 · ±2 yr gap = 6–8 · >2 yr under = 2 |
+| **Preferred Skills** | **10** | `(matched / total) × 10 × core_ratio` |
+| **Boolean Query Boost** | **+10** | Keyword hits from Boolean query × 10 × `core_ratio` |
+| **Total** | **100** | `min(sum, 100)` → `match_percentage` |
+
+> **`core_ratio`** = `matched_req / total_req`. Title, preferred, and boost scores are all multiplied by this ratio — so candidates missing required skills get dampened scores everywhere, not just in the required-skills bucket.
+
+**Step 4 — Rank & Persist**
+
+All candidates are sorted by `match_percentage` descending. The top N are saved to `candidate_results` with full `score_breakdown` JSON and an auto-generated fit explanation.
 
 ---
 
