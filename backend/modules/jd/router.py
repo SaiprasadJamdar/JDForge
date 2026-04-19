@@ -138,9 +138,13 @@ def score(
     jd = get_jd(db, jd_id, current_user.id)
     if not jd:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
+    # Use the JD content provided in the payload (allows scoring unsaved changes)
+    # otherwise fallback to the content stored in the DB.
+    jd_to_score = payload.jd if payload.jd and payload.jd.strip() else jd.content
+    
     # Decrypt Key for Scoring
     api_key = decrypt_key(current_user.groq_api_key)
-    result = score_jd_quality(payload.transcript, jd.content, api_key=api_key)
+    result = score_jd_quality(payload.transcript, jd_to_score, api_key=api_key)
     save_quality_score(db, jd, result["scores"])
     return ScoreJDResponse(**result)
 

@@ -147,20 +147,33 @@ def upload_and_generate_jds(
             shutil.copyfileobj(file.file, buffer)
 
         target_path = file_path
-        # 2. Detect video via MIME type or extension
+        # 2. Detect file type
+        suffix = file_path.suffix.lower()
         is_video = (file.content_type is not None and file.content_type.startswith("video/")) or \
-                   file_path.suffix.lower() in {".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv"}
-
-        if is_video:
-            target_path = extract_audio(file_path)
-        elif not file_path.suffix.lower() in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}:
-            safe_audio_path = file_path.with_suffix(".mp3")
-            shutil.copy(file_path, safe_audio_path)
-            target_path = safe_audio_path
-
-        # 3. Transcribe
+                   suffix in {".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv"}
+        
+        is_doc = suffix in {".pdf", ".docx"}
+        
+        # 3. Transcribe or Extract
         api_key = decrypt_key(current_user.groq_api_key)
-        transcript_text = transcribe_audio_file(target_path, api_key)
+        
+        if is_doc:
+            from backend.modules.transcripts.service import extract_text_from_doc
+            transcript_text = extract_text_from_doc(file_path)
+        elif is_video:
+            target_path = extract_audio(file_path)
+            transcript_text = transcribe_audio_file(target_path, api_key)
+        else:
+            # Fallback to audio if not doc or video
+            if not suffix in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}:
+                safe_audio_path = file_path.with_suffix(".mp3")
+                shutil.copy(file_path, safe_audio_path)
+                target_path = safe_audio_path
+            transcript_text = transcribe_audio_file(target_path, api_key)
+
+        # 4. Filter empty text
+        if not transcript_text:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Zero text could be extracted from this file.")
 
         # 4. Persist raw transcript
         payload = TranscriptCreate(

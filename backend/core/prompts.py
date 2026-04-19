@@ -103,7 +103,15 @@ STRICT: <query>
 """.strip()
 
 SCORE_PROMPT = """
-You are a JD quality evaluator. Given the source transcript and the generated JD, score the JD.
+You are a HYPER-CRITICAL JD Quality Auditor. Your job is to find faults, gaps, and inaccuracies. 
+You are comparing a generated Job Description (JD) against a source transcript.
+
+SCORING RULES (BE STRICTURE):
+1. Gibberish/Placeholder Check: If the JD contains placeholder text like "[Enter info]", "To be confirmed", "N/A", or repeated gibberish, the Overall Score MUST be below 40%.
+2. Fidelity Check: If the transcript mentions a specific skill or tool and it is MISSING from the JD, penalize the Fidelity score by 20 points per missing item.
+3. Completeness Check: A professional JD MUST have Title, Summary, Responsibilities, and Skills. If any full section is missing or contains less than 10 words, score that section 0%.
+4. Don't be "nice". An average JD should score around 60%. Only perfect, highly detailed JDs get 90+.
+
 Return your evaluation in EXACTLY this format — no extra text before or after:
 
 === JD QUALITY SCORING REPORT ===

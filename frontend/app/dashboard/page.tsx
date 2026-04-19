@@ -341,13 +341,13 @@ export default function DashboardPage() {
                         ref={fileInputRef} 
                         onChange={handleFileChange} 
                         className="hidden" 
-                        accept="audio/*,video/*"
+                        accept="audio/*,video/*,.pdf,.docx"
                       />
                       <div className="w-20 h-20 bg-white rounded-3xl shadow-sm flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
                         <Upload className="w-10 h-10 text-[#2563EB]" />
                       </div>
                       <h3 className="text-xl font-bold text-slate-800">Drag & drop files</h3>
-                      <p className="text-slate-500 mt-1 text-[11px]">Audio (.mp3) or Video (.mp4, .mov)</p>
+                      <p className="text-slate-500 mt-1 text-[11px]">Audio, Video, PDF, or Word (.docx)</p>
                     </div>
 
                     {selectedFile && (

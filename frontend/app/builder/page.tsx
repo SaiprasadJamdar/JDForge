@@ -410,7 +410,10 @@ function BuilderPageContent() {
     setIsEvaluating(true); setShowEvaluation(true)
     try {
       const res = await fetchApi(`/jds/${currentJD.id}/score`, {
-        method: "POST", body: JSON.stringify({ transcript: cleanTranscript, jd: "" })
+        method: "POST", body: JSON.stringify({ 
+          transcript: cleanTranscript, 
+          jd: JSON.stringify(currentJD.content) 
+        })
       })
       updateJD({ ...currentJD, quality_score: res.scores }); setCurrentReport(res.report)
     } catch { toast.error("Evaluation failed."); setShowEvaluation(false) } finally { setIsEvaluating(false) }

@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 WHISPER_MODEL = "whisper-large-v3-turbo"
 
 
+import fitz  # PyMuPDF
+import docx
+import shutil
+
 def extract_audio(video_path: Path) -> Path:
     temp_dir = tempfile.gettempdir()
     audio_path = Path(temp_dir) / f"{video_path.stem}_ext.mp3"
@@ -35,6 +39,24 @@ def extract_audio(video_path: Path) -> Path:
         logger.error(f"FFmpeg failed: {e.stderr.decode(errors='ignore')}")
         raise RuntimeError(f"Could not extract audio from {video_path.name}")
     return audio_path
+
+
+def extract_text_from_doc(file_path: Path) -> str:
+    """Extracts text from PDF or DOCX."""
+    ext = file_path.suffix.lower()
+    text = ""
+    
+    if ext == ".pdf":
+        logger.info(f"Extracting text from PDF: {file_path.name}")
+        with fitz.open(str(file_path)) as doc:
+            for page in doc:
+                text += page.get_text()
+    elif ext == ".docx":
+        logger.info(f"Extracting text from DOCX: {file_path.name}")
+        doc = docx.Document(str(file_path))
+        text = "\n".join([p.text for p in doc.paragraphs])
+    
+    return text.strip()
 
 
 def transcribe_audio_file(audio_path: Path, api_key: str | None = None) -> str:
