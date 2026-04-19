@@ -46,7 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
       setToken(null)
       setIsLoading(false)
-      if (pathname !== "/login" && pathname !== "/register" && pathname !== "/forgot-password") {
+      // Allow landing page, login, register, and forgot-password without redirect
+      const publicPaths = ["/", "/login", "/register", "/forgot-password"]
+      if (!publicPaths.includes(pathname)) {
          router.push("/login")
       }
       return
@@ -57,16 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userData)
       setToken(storedToken)
     } catch (error: any) {
-      // Token invalid or expired - clear session silently if it was a validation failure
-      if (error?.message === "Could not validate credentials") {
-        console.log("Session expired or invalid, clearing authentication.")
-      } else {
-        console.error("Session load failed:", error)
-      }
+      // Token invalid or expired
       localStorage.removeItem("token")
       setUser(null)
       setToken(null)
-      if (pathname !== "/login" && pathname !== "/register") {
+      const publicPaths = ["/", "/login", "/register"]
+      if (!publicPaths.includes(pathname)) {
          router.push("/login")
       }
     } finally {
@@ -82,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("token", newToken)
     setToken(newToken)
     await loadUser()
-    router.push("/")
+    router.push("/dashboard")
   }
 
   const logout = () => {

@@ -23,7 +23,7 @@ import { toast } from "sonner"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, isLoaded: authLoaded } = useAuth()
+  const { user, isLoading } = useAuth()
   
   // File Upload State
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -47,10 +47,10 @@ export default function DashboardPage() {
 
   // Authentication Redirect
   useEffect(() => {
-    if (authLoaded && !user) {
+    if (!isLoading && !user) {
       router.push("/login")
     }
-  }, [user, authLoaded, router])
+  }, [user, isLoading, router])
 
   // Fetch Existing JDs
   useEffect(() => {
@@ -250,7 +250,7 @@ export default function DashboardPage() {
     jd.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  if (!authLoaded) return null;
+  if (isLoading) return null;
 
   return (
     <AppShell>

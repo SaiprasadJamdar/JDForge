@@ -18,18 +18,18 @@ import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
-  const { user, isLoaded } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    if (isLoaded && user) {
+    if (!isLoading && user) {
       router.push("/dashboard")
     }
-  }, [user, isLoaded, router])
+  }, [user, isLoading, router])
 
-  if (!mounted || (isLoaded && user)) return null
+  if (!mounted || (!isLoading && user)) return null
 
   return (
     <div className="min-h-screen bg-white text-slate-900 selection:bg-blue-100 overflow-x-hidden font-sans">
