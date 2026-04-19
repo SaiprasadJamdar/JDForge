@@ -9,8 +9,7 @@
   <img src="https://img.shields.io/badge/🚀%20Live%20Demo-jd--forge.vercel.app-6366f1?style=for-the-badge&logoColor=white" />
 </a>
 &nbsp;
-<a href="https://github.com/SaiprasadJamdar/JDForge">
-</a>
+
 
 <br/>
 
@@ -113,6 +112,14 @@ JDForge uses a modern **Next.js 16 + FastAPI** stack with a bring-your-own-key m
 ---
 
 ## 📊 System Diagrams
+
+### 🏛️ System Architecture
+
+<div align="center">
+  <img src="./architecture.svg" width="100%" alt="JDForge System Architecture" />
+</div>
+
+---
 
 <details>
 <summary><b>🔄 &nbsp;Diagram 1 — JD Generation Flow</b></summary>
