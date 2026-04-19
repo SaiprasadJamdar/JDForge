@@ -235,10 +235,10 @@ def refine_jd_sections(db: Session, jd: JD, tags: List[str], prompt: str) -> JD:
         
     sections = jd_data.get("sections", {})
     
-    # 1. Isolate the tagged strings
+    # 1. Isolate the tagged strings or use everything if not specified manually (e.g. voice instructions)
     target_context = {tag: sections.get(tag, "") for tag in tags if tag in sections}
     if not target_context:
-        return jd # Nothing to refine
+        target_context = sections 
         
     # 2. Build Groq User Prompt mapping
     user_payload = json.dumps({

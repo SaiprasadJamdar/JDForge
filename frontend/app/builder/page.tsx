@@ -369,12 +369,27 @@ function BuilderPageContent() {
     }
   }, [selectedJDId, currentJD?.transcript_id])
 
+  // Dynamically extract sections being spoken or typed
+  useEffect(() => {
+    if (!chatInput.trim() || !currentJD?.content?.sections) return
+    const txt = chatInput.toLowerCase()
+    const autoTags = Object.keys(currentJD.content.sections).filter(s => txt.includes(s.toLowerCase()))
+    
+    if (autoTags.length > 0) {
+      setTaggedSections(prev => {
+        const toAdd = autoTags.filter(t => !prev.includes(t))
+        return toAdd.length > 0 ? [...prev, ...toAdd] : prev
+      })
+    }
+  }, [chatInput, currentJD])
+
   const handleRefine = async () => {
     if (!selectedJDId || !chatInput.trim()) return
     setIsRefining(true)
     try {
       const updated = await fetchApi(`/jds/${selectedJDId}/refine`, {
-        method: "POST", body: JSON.stringify({ tags: taggedSections, prompt: chatInput })
+        method: "POST",
+        body: JSON.stringify({ prompt: chatInput, tags: taggedSections })
       })
       if (typeof updated.content === "string") { try { updated.content = JSON.parse(updated.content) } catch {} }
       updateJD(updated); setChatInput(""); setTaggedSections([])
@@ -743,17 +758,17 @@ function BuilderPageContent() {
                             <div className="w-56 shrink-0 space-y-2 max-h-36 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
                               {strengths.slice(0, 2).map((l, i) => (
                                 <div key={i} className="flex items-start gap-1.5 text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1.5">
-                                  <span className="font-black shrink-0">✓</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '').slice(0, 60)}</span>
+                                  <span className="font-black shrink-0">✓</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '')}</span>
                                 </div>
                               ))}
                               {warnings.slice(0, 2).map((l, i) => (
                                 <div key={i} className="flex items-start gap-1.5 text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
-                                  <span className="font-black shrink-0">⚠</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '').slice(0, 60)}</span>
+                                  <span className="font-black shrink-0">⚠</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '')}</span>
                                 </div>
                               ))}
                               {actions.slice(0, 2).map((l, i) => (
                                 <div key={i} className="flex items-start gap-1.5 text-[9px] text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-2 py-1.5">
-                                  <span className="font-black shrink-0">→</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '').slice(0, 60)}</span>
+                                  <span className="font-black shrink-0">→</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '')}</span>
                                 </div>
                               ))}
                               {strengths.length === 0 && warnings.length === 0 && (
