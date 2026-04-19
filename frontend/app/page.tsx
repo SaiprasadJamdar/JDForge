@@ -1,519 +1,305 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { AppShell } from "@/components/app-shell"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, Mic, MicOff, Search, FileText, FileAudio, File, Loader2, Pencil, Trash2 } from "lucide-react"
-import { fetchApi } from "@/lib/api"
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { motion, useScroll, useTransform } from "framer-motion"
+import { 
+  Mic, 
+  Sparkles, 
+  FileText, 
+  ArrowRight, 
+  Zap, 
+  Shield, 
+  Globe, 
+  ChevronRight,
+  Play
+} from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
 
-export default function Home() {
+export default function LandingPage() {
+  const { user, isLoaded } = useAuth()
   const router = useRouter()
-  const { user } = useAuth()
-  
-  // File Upload State
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [pastedText, setPastedText] = useState("")
-  const [templateText, setTemplateText] = useState("")
-  const [showTemplateInput, setShowTemplateInput] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  // STT State
-  const [isRecording, setIsRecording] = useState(false)
-  const recognitionRef = useRef<any>(null)
-
-  // API State
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isFetchingJDs, setIsFetchingJDs] = useState(true)
-
-  // JD Table State
-  const [jds, setJds] = useState<any[]>([])
-  const [searchQuery, setSearchQuery] = useState("")
-
-  // Fetch Existing JDs
   useEffect(() => {
-    async function loadJDs() {
-      try {
-        // fetchApi already returns parsed JSON or throws on error
-        const data = await fetchApi("/jds")
-        setJds(data)
-      } catch (err) {
-        console.error("Failed to fetch JDs:", err)
-      } finally {
-        setIsFetchingJDs(false)
-      }
+    setMounted(true)
+    if (isLoaded && user) {
+      router.push("/dashboard")
     }
-    if (user) {
-      loadJDs()
-    }
-  }, [user])
+  }, [user, isLoaded, router])
 
-  const handleDeleteJD = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    if (!window.confirm("Are you sure you want to delete this JD forever?")) return
-    
-    setJds(prev => prev.filter(jd => jd.id !== id))
-    try {
-      await fetchApi(`/jds/${id}`, { method: "DELETE" })
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  const handleRenameJD = async (e: React.MouseEvent, id: string, currentTitle: string) => {
-    e.stopPropagation()
-    const newTitle = window.prompt("Enter new Job Description title:", currentTitle)
-    if (!newTitle || newTitle.trim() === "" || newTitle === currentTitle) return
-
-    setJds(prev => prev.map(jd => jd.id === id ? { ...jd, title: newTitle.trim() } : jd))
-    try {
-       await fetchApi(`/jds/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ title: newTitle.trim() })
-       })
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  // Initialize Speech Recognition
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition()
-        recognition.continuous = true
-        recognition.interimResults = true
-        recognition.lang = "en-US"
-
-        recognition.onresult = (event: any) => {
-          let finalTranscript = ""
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript + " "
-            }
-          }
-          if (finalTranscript) {
-            setPastedText((prev) => prev + finalTranscript)
-          }
-        }
-
-        recognition.onerror = (e: any) => {
-          console.error("Speech recognition error:", e)
-          setIsRecording(false)
-        }
-
-        recognition.onend = () => {
-          if (isRecording) {
-            // Automatically restart if it was stopped unexpectedly while we wanted it running
-            recognition.start()
-          }
-        }
-
-        recognitionRef.current = recognition
-      }
-    }
-    
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-    }
-  }, [])
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop()
-      setIsRecording(false)
-    } else {
-      recognitionRef.current?.start()
-      setIsRecording(true)
-    }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0])
-    }
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setSelectedFile(e.dataTransfer.files[0])
-    }
-  }
-
-  const handleRemoveFile = () => {
-    setSelectedFile(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-  }
-
-  // --- Processing Pipeline ---
-  const handleProcessText = async () => {
-    if (!pastedText.trim()) return
-    setIsProcessing(true)
-    try {
-      // 1. Ingest transcript
-      const transcript = await fetchApi("/transcripts", {
-        method: "POST",
-        body: JSON.stringify({
-          raw_text: pastedText,
-          source_type: "text_paste",
-          source_filename: "pasted_text.txt",
-          language_hint: "en"
-        })
-      })
-
-      // 2. Generate JDs using cleanly processed backend record
-      const result = await fetchApi("/jds/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          transcript_id: transcript.id,
-          template: templateText.trim() || null
-        })
-      })
-      
-      if (result.jds && result.jds.length > 0) {
-        setJds((prev: any[]) => [...result.jds, ...prev])
-        router.push(`/builder`)
-      }
-    } catch (err) {
-      console.error(err)
-      alert("An error occurred during processing.")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleProcessFile = async () => {
-    if (!selectedFile) return
-    setIsProcessing(true)
-    try {
-      const formData = new FormData()
-      formData.append("file", selectedFile)
-      if (templateText.trim()) {
-        formData.append("template", templateText.trim())
-      }
-
-      // Single smart endpoint: video/audio → FFmpeg → Whisper → LLaMA clean → multi-JD split → persist
-      const jds = await fetchApi("/transcripts/upload-and-generate", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (jds && jds.length > 0) {
-        // Append new JDs to the table
-        setJds((prev: any[]) => [...jds, ...prev])
-        router.push(`/builder`)
-      }
-    } catch (err) {
-      console.error(err)
-      alert("Failed to process file. Please check that FFmpeg is installed and the backend is running.")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  // Filtered Display Data
-  const filteredJDs = jds.filter(jd => 
-    jd.title.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  if (!mounted || (isLoaded && user)) return null
 
   return (
-    <AppShell>
-      <div className="flex-1 w-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden h-full min-h-0 relative">
-        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-900/10 pointer-events-none" />
-        {/* --- LEFT COLUMN: CREATE NEW JD (Fixed) --- */}
-        <section className="w-full lg:w-[480px] shrink-0 p-6 lg:p-8 flex flex-col gap-6 lg:border-r border-slate-200/50 dark:border-slate-800 relative z-10">
-          <div>
-            <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 tracking-tight">Create New JD</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium leading-relaxed">Paste hiring requirements or upload recordings to synthesize structured JDs instantly.</p>
+    <div className="min-h-screen bg-white text-slate-900 selection:bg-blue-100 overflow-x-hidden font-sans">
+      {/* ─── NAVIGATION ───────────────────────────────────────────────────────────── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between backdrop-blur-md bg-white/70 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
+          <span className="text-lg font-black tracking-tighter text-slate-900 uppercase">JDForge</span>
+        </div>
+        <div className="hidden md:flex items-center gap-8 text-[11px] font-black uppercase tracking-widest text-slate-400">
+          <a href="#features" className="hover:text-indigo-600 transition-colors">Intelligence</a>
+          <a href="#workflow" className="hover:text-indigo-600 transition-colors">Workflow</a>
+          <a href="#security" className="hover:text-indigo-600 transition-colors">Enterprise</a>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link href="/login" className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-indigo-600 transition-colors">Login</Link>
+          <Link href="/register" className="px-5 py-2.5 bg-indigo-600 text-white text-[11px] font-black uppercase tracking-[0.15em] rounded-full hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95">Get Started</Link>
+        </div>
+      </nav>
 
-          <Card className="border border-slate-200/60 shadow-xl shadow-blue-900/5 dark:shadow-none dark:border-slate-800 rounded-[32px] overflow-hidden bg-white/80 backdrop-blur-xl dark:bg-slate-900/80 flex flex-col min-h-0 flex-1">
-            <CardContent className="p-0 flex flex-col h-full min-h-0">
-              <Tabs defaultValue="paste" className="w-full h-full flex flex-col min-h-0">
-                <div className="bg-slate-50/50 dark:bg-slate-800/50 p-3 border-b border-slate-100/50 dark:border-slate-800 shrink-0">
-                  <TabsList className="bg-transparent w-full grid grid-cols-2 gap-2 h-12">
-                    <TabsTrigger value="paste" className="rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-600 data-[state=active]:shadow-[0_2px_10px_rgba(0,0,0,0.06)] font-semibold transition-all">
-                      <FileText className="w-4 h-4 mr-2" /> Paste Text
-                    </TabsTrigger>
-                    <TabsTrigger value="upload" className="rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-600 data-[state=active]:shadow-[0_2px_10px_rgba(0,0,0,0.06)] font-semibold transition-all">
-                      <Upload className="w-4 h-4 mr-2" /> Upload File
-                    </TabsTrigger>
-                  </TabsList>
+      {/* ─── HERO SECTION ─────────────────────────────────────────────────────────── */}
+      <section className="relative pt-40 pb-20 px-6 max-w-7xl mx-auto flex flex-col items-center text-center overflow-visible">
+        {/* Glow Effects */}
+        <div className="absolute top-20 -left-20 w-[600px] h-[600px] bg-indigo-200/30 rounded-full blur-[120px] -z-10 animate-pulse" />
+        <div className="absolute top-40 -right-20 w-[500px] h-[500px] bg-blue-200/20 rounded-full blur-[100px] -z-10" />
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-8 border border-indigo-100/50"
+        >
+          <Zap className="w-3 h-3 fill-indigo-700" />
+          Powered by Llama 3.3 Intelligence
+        </motion.div>
+
+        <motion.h1 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="text-6xl md:text-[5.5rem] font-extrabold leading-[1.05] tracking-[-0.04em] text-slate-900 mb-8 max-w-4xl"
+        >
+          Turn Raw Audio into <br/>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500">Perfect JDs.</span>
+        </motion.h1>
+
+        <motion.p 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="text-lg md:text-xl text-slate-500 font-medium max-w-2xl mb-12 leading-relaxed"
+        >
+          Stop wrestling with blank pages. Upload meeting recordings or paste unstructured notes. JDForge synthesizes professional, branded job descriptions in seconds.
+        </motion.p>
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="flex flex-col sm:flex-row gap-4 mb-20 px-4 w-full justify-center"
+        >
+          <Link href="/register" className="group flex items-center justify-center gap-3 px-8 py-5 bg-slate-900 text-white rounded-[24px] text-sm font-black uppercase tracking-[0.1em] hover:bg-black transition-all shadow-2xl shadow-indigo-900/10 hover:-translate-y-1">
+            Start Foraging Free
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Link>
+          <button className="flex items-center justify-center gap-3 px-8 py-5 bg-white border border-slate-200 text-slate-900 rounded-[24px] text-sm font-black uppercase tracking-[0.1em] hover:bg-slate-50 transition-all shadow-lg shadow-slate-900/5 active:scale-95">
+            <Play className="w-4 h-4 fill-slate-900" />
+            Watch Product Tour
+          </button>
+        </motion.div>
+
+        {/* Floating Dashboard Preview */}
+        <motion.div 
+          initial={{ opacity: 0, y: 100 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.6 }}
+          className="relative w-full max-w-5xl bg-white border border-slate-200 shadow-[0_40px_100px_rgb(0,0,0,0.1)] rounded-[40px] p-4 group"
+        >
+          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-blue-400 rounded-[40px] blur-3xl opacity-[0.05] group-hover:opacity-10 transition-opacity" />
+          <div className="relative rounded-[28px] overflow-hidden bg-slate-50 aspect-video border border-slate-100 flex items-center justify-center">
+            {/* Mock Dashboard UI */}
+            <div className="w-full h-full p-8 flex flex-col gap-6">
+              <div className="flex justify-between items-center h-12">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 rounded-full bg-slate-200" />
+                  <div className="w-3 h-3 rounded-full bg-slate-200" />
+                  <div className="w-3 h-3 rounded-full bg-slate-200" />
                 </div>
-
-                <div className="flex-1 overflow-y-scroll custom-scrollbar">
-                  {/* TEXT TAB */}
-                  <TabsContent value="paste" className="mt-0 p-6 h-full flex flex-col gap-4">
-                    <div className="relative flex-1">
-                      <textarea 
-                        value={pastedText}
-                        onChange={(e) => setPastedText(e.target.value)}
-                        placeholder="Paste your meeting notes, job requirements, or unstructured text here..."
-                        className="w-full h-full p-5 pb-16 bg-[#F8FAFC] dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl resize-none outline-none focus:ring-2 focus:ring-[#EAF3FF] focus:border-[#2563EB] transition-all"
-                      ></textarea>
-                      
-                      {/* Integrated Browser STT Mic */}
-                      <div className="absolute bottom-4 left-4 flex gap-2">
-                        <Button 
-                          onClick={toggleRecording}
-                          variant="ghost" 
-                          size="icon" 
-                          className={`rounded-full shadow-sm hover:scale-105 transition-all text-white ${isRecording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-[#2563EB] hover:bg-blue-700'}`}
-                        >
-                          {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                        </Button>
-                        <div className="flex flex-col justify-center">
-                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{isRecording ? "Listening..." : "Dictate"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Optional Template Input */}
-                    <div className="flex flex-col gap-2">
-                       <button onClick={() => setShowTemplateInput(!showTemplateInput)} className="text-left flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors w-fit">
-                          {showTemplateInput ? "− Hide Template" : "➕ Add Reference JD Template (Optional)"}
-                       </button>
-                       {showTemplateInput && (
-                          <textarea
-                             value={templateText}
-                             onChange={(e) => setTemplateText(e.target.value)}
-                             placeholder="Paste your existing JD format, specific tone guidelines, or a reference structure..."
-                             className="w-full h-32 p-4 text-sm bg-white dark:bg-slate-950 border border-dashed border-blue-200 dark:border-blue-900/40 rounded-xl resize-none outline-none focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
-                          />
-                       )}
-                    </div>
-                    
-                    <Button 
-                      onClick={handleProcessText}
-                      disabled={isProcessing || !pastedText.trim()}
-                      className="w-full rounded-2xl py-6 bg-[#2563EB] hover:bg-blue-700 text-white font-bold shadow-md transition-all uppercase tracking-widest text-[11px]"
-                    >
-                      {isProcessing ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
-                      ) : "Process Text"}
-                    </Button>
-                  </TabsContent>
-
-                  {/* FILE TAB */}
-                  <TabsContent value="upload" className="mt-0 p-6 h-full flex flex-col gap-6">
-                    <div 
-                      onClick={() => fileInputRef.current?.click()}
-                      onDragOver={handleDragOver}
-                      onDragEnter={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className={`flex-1 min-h-[300px] border-2 border-dashed rounded-3xl p-8 text-center transition-all cursor-pointer group flex flex-col items-center justify-center ${isDragging ? 'border-[#2563EB] bg-blue-50/50 dark:bg-[#2563EB]/10' : 'border-slate-200 hover:border-[#2563EB] dark:border-slate-700 bg-slate-50 dark:bg-slate-800/20'}`}
-                    >
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        className="hidden" 
-                        accept="audio/*,video/*"
-                      />
-                      <div className="w-20 h-20 bg-white dark:bg-slate-900 rounded-3xl shadow-sm flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                        <Upload className="w-10 h-10 text-[#2563EB]" />
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">Drag & drop files</h3>
-                      <p className="text-slate-500 dark:text-slate-400 mt-1 text-[11px]">Audio (.mp3) or Video (.mp4, .mov)</p>
-                    </div>
-
-                    {selectedFile && (
-                      <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                        <div className="flex items-center min-w-0">
-                           <FileAudio className="w-4 h-4 text-[#2563EB] mr-3 shrink-0" />
-                           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{selectedFile.name}</span>
-                        </div>
-                        <button 
-                          onClick={handleRemoveFile}
-                          className="w-6 h-6 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* Optional Template Input */}
-                    <div className="flex flex-col gap-2 shrink-0">
-                       <button onClick={() => setShowTemplateInput(!showTemplateInput)} className="text-left flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors w-fit">
-                          {showTemplateInput ? "− Hide Template" : "➕ Add Reference JD Template (Optional)"}
-                       </button>
-                       {showTemplateInput && (
-                          <div 
-                             className="relative w-full h-32"
-                             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                             onDrop={async (e) => {
-                                e.preventDefault(); e.stopPropagation();
-                                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                   const file = e.dataTransfer.files[0];
-                                   if (file.name.endsWith('.txt')) {
-                                      const reader = new FileReader();
-                                      reader.onload = (ev) => setTemplateText(ev.target?.result as string);
-                                      reader.readAsText(file);
-                                   } else if (file.name.endsWith('.docx')) {
-                                      const reader = new FileReader();
-                                      reader.onload = async (ev) => {
-                                         const mammoth = await import("mammoth");
-                                         const result = await mammoth.extractRawText({ arrayBuffer: ev.target?.result as ArrayBuffer });
-                                         setTemplateText(result.value);
-                                      };
-                                      reader.readAsArrayBuffer(file);
-                                   } else {
-                                      toast.error("Unsupported template format. Please use .txt or .docx");
-                                   }
-                                }
-                             }}
-                          >
-                             <textarea
-                                value={templateText}
-                                onChange={(e) => setTemplateText(e.target.value)}
-                                placeholder="Paste your existing JD format, specific tone guidelines, or drag and drop a .docx/.txt file here..."
-                                className="absolute inset-0 w-full h-full p-4 text-sm bg-white dark:bg-slate-950 border border-dashed border-blue-200 dark:border-blue-900/40 rounded-xl resize-none outline-none focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
-                             />
-                          </div>
-                       )}
-                    </div>
-
-                    <Button 
-                      onClick={handleProcessFile}
-                      disabled={isProcessing || !selectedFile}
-                      className="w-full rounded-2xl py-6 bg-[#2563EB] hover:bg-blue-700 text-white font-bold shadow-md transition-all uppercase tracking-widest text-[11px]"
-                    >
-                      {isProcessing ? (
-                         <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...</>
-                      ) : "Process File"}
-                    </Button>
-                  </TabsContent>
+                <div className="w-48 h-full bg-white rounded-xl border border-slate-100 flex items-center px-4">
+                  <div className="w-full h-2 bg-slate-100 rounded-full" />
                 </div>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* --- RIGHT COLUMN: EXISTING JDS (Scrollable) --- */}
-        <section className="flex-1 p-6 lg:p-8 flex flex-col gap-6 overflow-hidden min-h-0">
-          <div className="flex items-center justify-between shrink-0">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Your Existing JDs</h2>
-              <p className="text-xs text-slate-400 mt-0.5 uppercase font-semibold tracking-wider">{filteredJDs.length} Total Records</p>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search JD titles..." 
-                className="pl-9 w-64 bg-white dark:bg-slate-900 rounded-xl border-slate-100 dark:border-slate-800"
-              />
+              </div>
+              <div className="flex-1 flex gap-6">
+                <div className="w-[30%] h-full bg-white rounded-3xl border border-slate-100 p-6 flex flex-col gap-4">
+                  <div className="w-full h-3 bg-indigo-50 rounded-full" />
+                  <div className="w-[70%] h-3 bg-indigo-50 rounded-full" />
+                  <div className="mt-8 flex-1 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center">
+                    <Mic className="w-6 h-6 text-indigo-300" />
+                  </div>
+                </div>
+                <div className="flex-1 h-full bg-white rounded-3xl border border-slate-100 p-8">
+                  <div className="w-[40%] h-6 bg-slate-900 rounded-full mb-8" />
+                  <div className="space-y-4">
+                    <div className="w-full h-3 bg-slate-100 rounded-full" />
+                    <div className="w-full h-3 bg-slate-100 rounded-full" />
+                    <div className="w-[85%] h-3 bg-slate-100 rounded-full" />
+                    <div className="w-[90%] h-3 bg-slate-100 rounded-full" />
+                  </div>
+                  <div className="mt-12 flex gap-4">
+                    <div className="w-24 h-8 bg-indigo-600 rounded-xl" />
+                    <div className="w-24 h-8 bg-slate-100 rounded-xl" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </motion.div>
+      </section>
 
-          <div className="flex-1 overflow-y-scroll pr-2 custom-scrollbar">
-            <Card className="border border-slate-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.03)] dark:shadow-none dark:border-slate-800 bg-white/70 backdrop-blur-xl dark:bg-slate-900/50 rounded-[32px] overflow-hidden min-h-full">
-              <Table>
-                <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
-                  <TableRow className="border-slate-100 dark:border-slate-800">
-                    <TableHead className="font-bold uppercase tracking-widest text-[10px] text-slate-400">Role Title</TableHead>
-                    <TableHead className="font-bold uppercase tracking-widest text-[10px] text-slate-400">Status</TableHead>
-                    <TableHead className="font-bold uppercase tracking-widest text-[10px] text-slate-400">Created</TableHead>
-                    <TableHead className="text-right font-bold uppercase tracking-widest text-[10px] text-slate-400">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isFetchingJDs ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-12">
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-100 mx-auto" />
-                        <p className="text-xs text-slate-400 mt-2 font-medium">Fetching your workspace...</p>
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredJDs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-20 text-slate-400">
-                        <FileText className="w-12 h-12 text-slate-100 mx-auto mb-3" />
-                        <p className="text-sm font-medium">No matching JDs found</p>
-                        <p className="text-xs">Try a different search or create one on the left.</p>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredJDs.map((jd) => (
-                      <TableRow 
-                        key={jd.id} 
-                        className="group cursor-pointer hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors border-slate-50 dark:border-slate-800" 
-                        onClick={() => {
-                          router.push(`/builder?jd_id=${jd.id}`)
-                        }}
-                      >
-                        <TableCell className="py-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors shadow-sm">
-                              <FileText className="w-5 h-5 text-blue-500" />
-                            </div>
-                            <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{jd.title}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={jd.status === 'draft' ? 'secondary' : 'default'} className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${jd.status === 'draft' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                            {jd.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-slate-400 text-[11px] font-medium font-mono">
-                          {new Date(jd.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1 opacity-100 transition-all">
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-600 hover:text-blue-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl" title="Rename" onClick={(e) => handleRenameJD(e, jd.id, jd.title)}>
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-600 hover:text-red-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl" title="Delete" onClick={(e) => handleDeleteJD(e, jd.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </Card>
+      {/* ─── FEATURES ────────────────────────────────────────────────────────────── */}
+      <section id="features" className="py-32 px-6 bg-slate-50/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-indigo-600 mb-4">Core Intelligence</h2>
+            <h3 className="text-4xl font-black tracking-tight text-slate-900">Revolutionizing the way you hire.</h3>
           </div>
-        </section>
 
-      </div>
-    </AppShell>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                icon: Mic,
+                title: "Voice-First Ingestion",
+                desc: "Record stakeholder meetings directly from your browser. JDForge extracts the nuance other tools miss.",
+                color: "indigo"
+              },
+              {
+                icon: FileText,
+                title: "Template Matching",
+                desc: "Upload legacy JDs to train the AI. Every generation will perfectly mirror your brand's unique tone.",
+                color: "blue"
+              },
+              {
+                icon: Zap,
+                title: "Semantic Analysis",
+                desc: "Quality scoring detects gaps before they go live. Get real-time feedback on JD effectiveness.",
+                color: "cyan"
+              }
+            ].map((f, i) => (
+              <motion.div 
+                key={f.title}
+                whileHover={{ y: -10 }}
+                className="bg-white p-10 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-900/5 group"
+              >
+                <div className={`w-14 h-14 bg-${f.color}-50 text-${f.color}-600 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform`}>
+                  <f.icon className="w-6 h-6" />
+                </div>
+                <h4 className="text-xl font-bold text-slate-900 mb-4">{f.title}</h4>
+                <p className="text-slate-500 font-medium leading-relaxed italic">"{f.desc}"</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── WORKFLOW CTA ──────────────────────────────────────────────────────────── */}
+      <section id="workflow" className="py-32 px-6 overflow-hidden">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
+          <div className="flex-1">
+            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-indigo-600 mb-4 text-center lg:text-left">One Workflow</h2>
+            <h3 className="text-5xl font-extrabold tracking-tight text-slate-900 mb-8 leading-[1.1] text-center lg:text-left">From raw input to <br/> <span className="text-indigo-600">branded PDF</span> in 60s.</h3>
+            
+            <div className="space-y-10 mt-12 pr-10">
+              {[
+                { n: "01", t: "Ingest Context", d: "Record audio or paste meeting notes. JDForge cleans and transcribes with 99% accuracy." },
+                { n: "02", t: "Structure Intelligence", d: "AI splits combined recordings into multiple distinct, structured job descriptions based on your criteria." },
+                { n: "03", t: "Visual Branding", d: "Choose from 10+ premium LaTeX-rendered templates. Export high-quality PDFs instantly." },
+              ].map(step => (
+                <div key={step.n} className="flex gap-6 items-start">
+                  <span className="text-4xl font-black text-slate-100 tabular-nums">{step.n}</span>
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-900 mb-2">{step.t}</h4>
+                    <p className="text-slate-500 font-medium leading-relaxed">{step.d}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 relative">
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-indigo-100/40 rounded-full blur-[100px] -z-10" />
+             <div className="bg-white border border-slate-200 rounded-[40px] p-2 shadow-2xl relative">
+                <div className="aspect-[3/4] rounded-[34px] overflow-hidden bg-slate-900 p-12 text-white flex flex-col">
+                   <div className="w-12 h-12 rounded-xl bg-indigo-600 mb-10" />
+                   <div className="w-3/4 h-8 bg-white/20 rounded-lg mb-4" />
+                   <div className="w-1/2 h-8 bg-white/10 rounded-lg mb-12" />
+                   
+                   <div className="space-y-6">
+                      <div className="w-full h-2 bg-white/10 rounded-full" />
+                      <div className="w-full h-2 bg-white/10 rounded-full" />
+                      <div className="w-[80%] h-2 bg-white/10 rounded-full" />
+                   </div>
+                   
+                   <div className="mt-auto pt-10 border-t border-white/10 flex justify-between items-end">
+                      <div className="space-y-2">
+                        <div className="w-20 h-2 bg-white/20 rounded-full" />
+                        <div className="w-32 h-2 bg-white/10 rounded-full" />
+                      </div>
+                      <div className="w-14 h-14 bg-indigo-600 rounded-full flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-white" />
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── GLOBAL TRUST ──────────────────────────────────────────────────────────── */}
+      <section id="security" className="py-32 px-6 bg-slate-900 text-white rounded-[60px] mx-4 mb-10 overflow-hidden relative">
+        <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px] -z-0" />
+        <div className="relative z-10 max-w-7xl mx-auto flex flex-col items-center text-center">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-8">Enterprise Grade</h2>
+          <h3 className="text-5xl md:text-6xl font-black mb-16 tracking-tight max-w-3xl leading-tight">Securing the next era <br/> of recruiting.</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-16 w-full text-left">
+            {[
+              { icon: Shield, t: "AES-256 Encryption", d: "Your Groq API keys and JD content are encrypted using industry-standard AES-256-GCM architecture." },
+              { icon: Globe, t: "Global Infrastructure", d: "Deployed across Vercel & Render clusters for edge response times and 99.9% availability." },
+              { icon: Zap, t: "Lightning Backend", d: "Stateless FastAPI layer ensures high-concurrency processing for large-scale enterprise hiring teams." }
+            ].map(item => (
+              <div key={item.t}>
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-6">
+                  <item.icon className="w-6 h-6 text-indigo-400" />
+                </div>
+                <h4 className="text-xl font-bold mb-4">{item.t}</h4>
+                <p className="text-slate-400 font-medium leading-relaxed">{item.d}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-32 w-full pt-16 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-12">
+            <div className="text-left">
+              <h4 className="text-3xl font-black mb-2">Ready to forge?</h4>
+              <p className="text-slate-400 font-medium italic">Join 5,000+ recruiters scaling their intelligence today.</p>
+            </div>
+            <Link href="/register" className="group px-10 py-6 bg-indigo-600 text-white rounded-[24px] text-sm font-black uppercase tracking-[0.2em] hover:bg-white hover:text-indigo-600 transition-all flex items-center gap-4">
+              Create My Account
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── FOOTER ────────────────────────────────────────────────────────────────── */}
+      <footer className="py-20 px-6 border-t border-slate-100">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <Sparkles className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-sm font-black tracking-tighter text-slate-900 uppercase">JDForge</span>
+          </div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">© 2026 JDForge Intelligence Systems Inc. Built for Wissen Technology.</p>
+          <div className="flex gap-8 text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <a href="#" className="hover:text-indigo-600">Twitter (X)</a>
+            <a href="#" className="hover:text-indigo-600">LinkedIn</a>
+          </div>
+        </div>
+      </footer>
+    </div>
   )
 }
