@@ -28,7 +28,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ─── App source ───────────────────────────────────────────────────────────────
-COPY . .
+# We copy the entire context (which is the backend folder) into /app/backend
+# so that Python imports like `from backend.database...` work correctly.
+COPY . /app/backend/
 
 # ─── Non-root user ────────────────────────────────────────────────────────────
 RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
@@ -36,5 +38,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Use the module path that matches the import style in main.py
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Run uvicorn pointing to the backend module
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
