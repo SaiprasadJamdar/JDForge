@@ -1,0 +1,105 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=0.6in]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{primary}{RGB}{0,102,153}
+\definecolor{textgray}{RGB}{60,60,60}
+\definecolor{lightbg}{RGB}{245,247,250}
+
+\titleformat{\section}{\Large\bfseries\color{primary}}{}{0em}{}
+\titlespacing*{\section}{0pt}{10pt}{6pt}
+\setlist[itemize]{noitemsep, topsep=2pt, leftmargin=1.3em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\begin{document}
+
+\begin{minipage}{0.7\textwidth}
+{\Huge\bfseries\color{primary} << hiring_title >>}
+\vspace{4pt}
+
+{\large Wissen Technology}
+\end{minipage}
+\hfill
+\begin{minipage}{0.25\textwidth}
+\raggedleft
+\includegraphics[width=4.5cm]{image.jpg}
+\end{minipage}
+
+\vspace{8pt}
+\hrule height 1pt
+\vspace{10pt}
+
+\begin{tcolorbox}[colback=lightbg,colframe=white,arc=4pt,boxrule=0pt]
+\textbf{Experience:} << experience >> \hfill
+\textbf{Location:} << location >> \hfill
+\textbf{Mode of Work:} << mode_of_work >>
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{About Wissen Technology}
+{\color{textgray} << about_wissen >> }
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{Job Summary}
+{\color{textgray} << job_summary >> }
+\end{tcolorbox}
+
+<% if responsibilities %>
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{Key Responsibilities}
+{\color{textgray}
+\begin{itemize}
+<< responsibilities >>
+\end{itemize}
+}
+\end{tcolorbox}
+<% endif %>
+
+<% if qualifications %>
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{Qualifications and Required Skills}
+{\color{textgray}
+\begin{itemize}
+<< qualifications >>
+\end{itemize}
+}
+\end{tcolorbox}
+<% endif %>
+
+<% if good_to_have %>
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{Good to Have Skills}
+{\color{textgray}
+\begin{itemize}
+<< good_to_have >>
+\end{itemize}
+}
+\end{tcolorbox}
+<% endif %>
+
+<% if soft_skills %>
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{Soft Skills}
+{\color{textgray}
+\begin{itemize}
+<< soft_skills >>
+\end{itemize}
+}
+\end{tcolorbox}
+<% endif %>
+
+\begin{tcolorbox}[colback=white,colframe=primary,arc=3pt]
+\section*{Wissen Sites}
+{\color{textgray} India \quad | \quad USA \quad | \quad UK \quad | \quad Germany }
+\end{tcolorbox}
+
+\end{document}

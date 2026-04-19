@@ -1,0 +1,88 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[margin=0.7in]{geometry}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{headingblue}{RGB}{0,102,153}
+\definecolor{textgray}{RGB}{80,80,80}
+
+\setlength{\parskip}{1pt}
+\setlength{\parindent}{0pt}
+
+\titleformat{\section}{\large\bfseries\color{headingblue}}{}{0em}{}
+\titlespacing*{\section}{0pt}{6pt}{3pt}
+\setlist[itemize]{noitemsep,topsep=1pt,partopsep=0pt,parsep=0pt,leftmargin=1.2em}
+
+\begin{document}
+
+\begin{flushright}
+\includegraphics[width=4.5cm]{image.jpg}
+\end{flushright}
+
+\vspace{-1.4cm}
+
+{\color{headingblue}\Large\textbf{<< hiring_title >>}}
+
+\vspace{4pt}
+
+{\color{textgray}
+\textbf{Location:} << location >> \\
+\textbf{Experience:} << experience >> \\
+\textbf{Mode of Work:} << mode_of_work >>
+}
+
+\vspace{6pt}
+\hrule
+\vspace{6pt}
+
+\section*{About Wissen Technology}
+{\color{textgray} << about_wissen >> }
+
+\section*{Job Summary}
+{\color{textgray} << job_summary >> }
+
+<% if responsibilities %>
+\section*{Key Responsibilities}
+{\color{textgray}
+\begin{itemize}
+<< responsibilities >>
+\end{itemize}
+}
+<% endif %>
+
+<% if qualifications %>
+\section*{Qualifications and Required Skills}
+{\color{textgray}
+\begin{itemize}
+<< qualifications >>
+\end{itemize}
+}
+<% endif %>
+
+<% if good_to_have %>
+\section*{Good to Have Skills}
+{\color{textgray}
+\begin{itemize}
+<< good_to_have >>
+\end{itemize}
+}
+<% endif %>
+
+<% if soft_skills %>
+\section*{Soft Skills}
+{\color{textgray}
+\begin{itemize}
+<< soft_skills >>
+\end{itemize}
+}
+<% endif %>
+
+\section*{Wissen Sites}
+{\color{textgray} India \quad | \quad USA \quad | \quad UK \quad | \quad Germany }
+
+\end{document}

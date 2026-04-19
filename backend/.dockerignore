@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env*
+venv/
+.venv/
+.git
+*.md
+Dockerfile
+.dockerignore
+# Don't exclude templates/ — pdflatex needs image.jpg / logo.png

@@ -1,0 +1,107 @@
+\documentclass[9pt,a4paper]{article}
+
+\usepackage[margin=0.5in]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{primary}{RGB}{0,102,153}
+\definecolor{panel}{RGB}{220,230,240}
+\definecolor{textgray}{RGB}{80,80,80}
+
+\titleformat{\section}{\normalsize\bfseries\color{primary}}{}{0em}{}
+\titlespacing*{\section}{0pt}{5pt}{2pt}
+\setlist[itemize]{noitemsep, topsep=0pt, leftmargin=1.1em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt}
+
+\begin{document}
+
+\begin{tikzpicture}[remember picture,overlay]
+\fill[panel] (current page.north west) rectangle ([xshift=5cm]current page.south west);
+\end{tikzpicture}
+
+\begin{tabular}{@{\hspace{-9pt}}p{3.8cm}@{\hspace{1.2cm}}p{13.2cm}@{}}
+
+\begin{minipage}[t]{\linewidth}
+\vspace{0pt}
+\includegraphics[width=3cm]{image.jpg}
+
+\vspace{10pt}
+\textbf{Location}\\ << location >>
+
+\vspace{6pt}
+\textbf{Job Type}\\ << job_type >>
+
+\vspace{6pt}
+\textbf{Experience}\\ << experience >>
+
+\vspace{6pt}
+\textbf{Mode}\\ << mode_of_work >>
+\end{minipage}
+
+&
+
+\begin{minipage}[t]{\linewidth}
+\vspace{0pt}
+
+{\Large\bfseries\color{primary} << hiring_title >>}
+
+\vspace{4pt}
+\hrule
+\vspace{6pt}
+
+\section*{About Wissen Technology}
+{\color{textgray} << about_wissen >> }
+
+\section*{Job Summary}
+{\color{textgray} << job_summary >> }
+
+<% if responsibilities %>
+\section*{Key Responsibilities}
+{\color{textgray}
+\begin{itemize}
+<< responsibilities >>
+\end{itemize}
+}
+<% endif %>
+
+<% if qualifications %>
+\section*{Qualifications and Required Skills}
+{\color{textgray}
+\begin{itemize}
+<< qualifications >>
+\end{itemize}
+}
+<% endif %>
+
+<% if good_to_have %>
+\section*{Good to Have Skills}
+{\color{textgray}
+\begin{itemize}
+<< good_to_have >>
+\end{itemize}
+}
+<% endif %>
+
+<% if soft_skills %>
+\section*{Soft Skills}
+{\color{textgray}
+\begin{itemize}
+<< soft_skills >>
+\end{itemize}
+}
+<% endif %>
+
+\section*{Wissen Sites}
+India \quad | \quad USA \quad | \quad UK \quad | \quad Germany
+
+\end{minipage}
+
+\end{tabular}
+
+\end{document}

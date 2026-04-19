@@ -126,3 +126,34 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.8) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.05);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(71, 85, 105, 0.9);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(30, 41, 59, 1.0);
+  }
+}

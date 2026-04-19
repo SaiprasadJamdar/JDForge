@@ -2,29 +2,18 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { AuthProvider } from '@/contexts/auth-context'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: 'JDForge - Voice-to-JD Intelligence Engine',
-  description: 'Transform voice recordings and documents into professional job descriptions with AI-powered intelligence',
-  generator: 'v0.app',
+  title: 'JDForge - Transcripts to JD Intelligence',
+  description: 'Transform transcripts and recordings into professional job descriptions with AI-powered intelligence',
+  generator: 'JDForge',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/icon.png',
     apple: '/apple-icon.png',
   },
 }
@@ -35,15 +24,19 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-background" suppressHydrationWarning>
+    <html lang="en" style={{ colorScheme: 'light' }} className="bg-white" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
-          enableSystem
+          enableSystem={false}
+          forcedTheme="light"
           disableTransitionOnChange
         >
-          {children}
+          <AuthProvider>
+            {children}
+            <Toaster position="bottom-right" richColors />
+          </AuthProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
