@@ -79,6 +79,7 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     # Always return 200 — don't reveal whether email exists
     user = get_user_by_email(db, payload.email)
     if not user:
+        print(f"[AUTH] Forget password request for UNREGISTERED email: {payload.email}")
         return {"message": "If the email is registered, an OTP has been sent."}
 
     # Invalidate any prior OTPs for this email
@@ -92,6 +93,7 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     db.add(record)
     db.commit()
 
+    print(f"\n[AUTH] OTP generated for {payload.email}: {otp_code}\n")
     send_otp_email(payload.email, otp_code)   # best-effort
     return {"message": "If the email is registered, an OTP has been sent."}
 

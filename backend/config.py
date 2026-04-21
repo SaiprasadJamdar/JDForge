@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     
     # CORS Origin
     frontend_url: str = "http://localhost:3000"
+    backend_url: str = "" # Set this to your public Render URL (e.g., https://api.jdforge.com)
 
     # Email / OTP -- set via env vars (SMTP_USER, SMTP_PASSWORD)
     # Gmail: Account -> Security -> 2-Step Verification -> App Passwords
