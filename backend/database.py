@@ -48,6 +48,7 @@ def create_all_tables():
         "ALTER TABLE candidate_results ADD COLUMN IF NOT EXISTS score_breakdown JSONB",
         "ALTER TABLE candidate_results ADD COLUMN IF NOT EXISTS matched_skills TEXT[]",
         "ALTER TABLE candidate_results ADD COLUMN IF NOT EXISTS missing_skills TEXT[]",
+        "ALTER TABLE jds ADD COLUMN IF NOT EXISTS accent_color TEXT",
     ]
     from sqlalchemy import text
     with engine.connect() as conn:
