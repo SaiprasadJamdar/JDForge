@@ -224,11 +224,12 @@ function SourcingPageContent() {
   // When JD changes, load template + candidates + queries
   useEffect(() => {
     if (!activeJDId) return
-    // Restore selected template from localStorage — per JD
-    const saved = localStorage.getItem(`jdforge_template_${activeJDId}`) || 't1_classic'
+    const jd = jds.find((j: any) => j.id === activeJDId)
+    // Restore selected template from DB, then localStorage
+    const saved = jd?.template_used || localStorage.getItem(`jdforge_template_${activeJDId}`) || 't1_classic'
     setSelectedTemplate(saved)
-    // Restore accent color from localStorage — per JD
-    const savedAccent = localStorage.getItem(`jdforge_accent_${activeJDId}`) || ''
+    // Restore accent color from DB, then localStorage
+    const savedAccent = jd?.accent_color || localStorage.getItem(`jdforge_accent_${activeJDId}`) || ''
     setAccentColor(savedAccent.replace('#', ''))
     // Restore candidates cache
     const cached = candidatesCache[activeJDId]
@@ -241,12 +242,12 @@ function SourcingPageContent() {
       setIsFetchingQueries(true)
       try {
         const data = await fetchApi(`/jds/${activeJDId}/search-queries`)
-        setSearchQueries(data)
+        setSearchQueries(Array.isArray(data) ? data : [])
       } catch { setSearchQueries([]) }
       finally { setIsFetchingQueries(false) }
     }
     fetchQueries()
-  }, [activeJDId])
+  }, [activeJDId, jds])
 
   const handleFetch = async () => {
     if (!activeJDId) return

@@ -86,6 +86,7 @@ def ingest_transcript(
     current_user=Depends(get_current_user),
 ):
     """Accept a raw transcript (text paste or filename reference) and persist it."""
+    t = create_transcript(db, current_user.id, payload)
     api_key = decrypt_key(current_user.groq_api_key)
     clean_transcript(db, t, api_key)
     return t

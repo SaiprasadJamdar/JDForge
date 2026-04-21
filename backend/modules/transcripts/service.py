@@ -27,10 +27,33 @@ def extract_audio(video_path: Path) -> Path:
     temp_dir = tempfile.gettempdir()
     audio_path = Path(temp_dir) / f"{video_path.stem}_ext.mp3"
     
-    # ── Resolve FFmpeg path dynamically (Priority: PATH > Standard User Paths) ──
+    # ── Resolve FFmpeg path dynamically (Priority: PATH > shell tools > standard Windows limits) ──
     ffmpeg_bin = shutil.which("ffmpeg")
+    
     if not ffmpeg_bin:
-        # Fallback for common Windows download paths
+        # Ask the OS directly via 'where' (Windows) or 'which' (Unix)
+        try:
+            cmd = ["where", "ffmpeg"] if os.name == "nt" else ["which", "ffmpeg"]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            candidate = res.stdout.strip().split("\n")[0].strip()
+            if candidate and Path(candidate).exists():
+                ffmpeg_bin = candidate
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+
+    if not ffmpeg_bin and os.name == "nt":
+        # Ask PowerShell (useful for WinGet/Scoop packages with shell aliases)
+        try:
+            res = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Command ffmpeg | Select-Object -ExpandProperty Source"], 
+                                 capture_output=True, text=True, check=True)
+            candidate = res.stdout.strip()
+            if candidate and Path(candidate).exists():
+                ffmpeg_bin = candidate
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+
+    if not ffmpeg_bin:
+        # Final fallback for common manual Windows download paths
         common_paths = [
             r"C:\ffmpeg\bin\ffmpeg.exe",
             r"C:\ffmpeg\ffmpeg-2026-04-19-git-de18feb0f0-essentials_build\bin\ffmpeg.exe",

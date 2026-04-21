@@ -1,75 +1,95 @@
-\documentclass[11pt,a4paper]{article}
+\documentclass[10pt,a4paper]{article}
 
-\usepackage[margin=0.5in]{geometry}
+\usepackage[top=0pt,bottom=0pt,left=0pt,right=0pt]{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[normalem]{ulem}
-\usepackage{tikz}
-\usepackage{tcolorbox}
-\tcbuselibrary{breakable}
+\usepackage{paracol}
 \usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{helvet}
+\usepackage[T1]{fontenc}
 \renewcommand{\familydefault}{\sfdefault}
 
-\definecolor{primary}{RGB}{0,102,153}
-\definecolor{sidebar}{RGB}{235,242,250}
-\definecolor{textgray}{RGB}{60,60,60}
+\definecolor{primary}{RGB}{37,99,235}
+\definecolor{sidebar}{RGB}{232,240,255}
+\definecolor{sideborder}{RGB}{186,210,253}
+\definecolor{textgray}{RGB}{60,75,95}
+\definecolor{textdark}{RGB}{15,23,42}
+\definecolor{rulecol}{RGB}{203,213,225}
 
-\titleformat{\section}{\large\bfseries\color{primary}}{}{0em}{}
-\titlespacing*{\section}{0pt}{10pt}{4pt}
-\setlist[itemize]{noitemsep, topsep=1pt, leftmargin=1.2em}
+\titleformat{\section}
+  {\raggedright\normalsize\bfseries\color{primary}}
+  {}{0em}{\MakeUppercase}
+  [{\color{rulecol}\vspace{2pt}\hrule height 0.5pt\vspace{4pt}}]
+\titlespacing*{\section}{0pt}{11pt}{2pt}
+
+\setlist[itemize]{noitemsep,topsep=2pt,leftmargin=1.3em,
+  label={\color{primary}$\bullet$}}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{4pt}
 
 \begin{document}
+\pagestyle{empty}
 
-\begin{tikzpicture}[remember picture,overlay]
-\fill[sidebar] (current page.north west) rectangle
-([xshift=6.5cm]current page.south west);
-\end{tikzpicture}
+\columnratio{0.29}
+\setlength{\columnsep}{0pt}
 
-\begin{minipage}[t]{5.5cm}
-\vspace{0pt}
-\centering
-\includegraphics[width=4cm]{image.jpg}
+\begin{paracol}{2}
 
-\vspace{1.5cm}
+%% ─── LEFT SIDEBAR ────────────────────────────────────────────────────────────
+\backgroundcolor{c[0]}{sidebar}
+\setlength{\leftskip}{10pt}
+\setlength{\rightskip}{8pt}
 
-\raggedright
-\color{black}
+\vspace*{24pt}
+
+\noindent\begin{center}
+  \includegraphics[width=4.8cm]{image.jpg}
+\end{center}
+
+\vspace{14pt}
+\noindent{\color{sideborder}\hrule height 1pt}
+\vspace{14pt}
+
 <% for meta in metadata %>
-\textbf{\color{primary}<< meta.label >>}\\
-<< meta.value >>
-\vspace{12pt}
+\noindent{\fontsize{7}{8}\selectfont\bfseries\color{primary}\MakeUppercase{<< meta.label >>}}
+
+\vspace{2pt}
+\noindent{\fontsize{9}{13}\selectfont\color{textgray}\raggedright << meta.value >>}
+
+\vspace{13pt}
 <% endfor %>
-\end{minipage}
-\hfill
-\begin{minipage}[t]{12.5cm}
-\vspace{0pt}
 
-{\Huge\bfseries\color{primary} << hiring_title >>}
+\switchcolumn
 
-\vspace{10pt}
-\hrule height 0.8pt
-\vspace{12pt}
+%% ─── RIGHT CONTENT ───────────────────────────────────────────────────────────
+%% NO minipage – lets long content flow freely to next pages
+\setlength{\leftskip}{18pt}
+\setlength{\rightskip}{18pt}
 
-% Main content box that can break across pages
-\begin{tcolorbox}[colback=white,colframe=white,arc=0pt,boxrule=0pt,left=0pt,right=0pt,top=0pt,bottom=0pt,breakable]
+\vspace*{24pt}
+
+\noindent{\fontsize{20}{25}\selectfont\bfseries\color{textdark}\raggedright << hiring_title >>}
+
+\vspace{8pt}
+\noindent{\color{primary}\hrule height 2.5pt}
+\vspace{2pt}
+\noindent{\color{rulecol}\hrule height 0.4pt}
+\vspace{14pt}
+
 <% for section in body_sections %>
 \section*{<< section.title >>}
-{\color{textgray}
+\noindent{\fontsize{9}{13.5}\selectfont\color{textgray}
   <% if section.is_list %>
     \begin{itemize}
     << section.content >>
     \end{itemize}
   <% else %>
-    << section.content >>
+    \raggedright << section.content >>
   <% endif %>
 }
 <% endfor %>
-\end{tcolorbox}
 
-\end{minipage}
-
+\end{paracol}
 \end{document}

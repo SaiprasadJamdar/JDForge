@@ -47,10 +47,19 @@ CORE IDENTITY (Always use these if the section exists):
 
 GENERATION RULES:
 1. **Eloquence**: Write in a sophisticated, professional, and exciting tone. Each section should look like it was written by a human recruitment expert.
-2. **Factual Expansion**: Take the skills and responsibilities from the transcript and elaborate them into professional bullet points. 
+2. **Factual Expansion**: Take the skills and responsibilities from the transcript and elaborate them into professional bullet points.
    - *Example*: If transcript says "needs java", write "Develop robust, scalable backend services using Java 17+ and Spring Boot frameworks."
-3. **No Hallucinated Numbers**: NEVER invent a specific LPA budget or a specific number of "WFH days" (e.g. 2 days) unless stated.
+3. **No Hallucinated Numbers**: NEVER invent a specific LPA budget or a specific number of "WFH days" unless stated.
 4. **Smart Defaulting**: If Location is missing, use "Bangalore / Hyderabad / Pune (Base Location)". If Experience is missing, use "Mid-Senior (Relevant to Role)".
+
+CRITICAL FORMATTING RULES (MUST FOLLOW):
+- NEVER repeat or include the JSON key name inside its value. The key IS the heading.
+  BAD:  {{"Location": "**Location:** Remote"}}
+  GOOD: {{"Location": "Remote (Eastern Standard Time or Central Standard Time zone)"}}
+- NEVER use markdown formatting (##, **, __, *, >) inside the values. Output clean plain text only.
+- For list-type sections (Responsibilities, Skills), return an ARRAY OF STRINGS instead of a single formatted string. DO NOT use manual bullets or newlines.
+- Short metadata fields (Hiring Title, Experience, Location, Mode of Work) must be a single plain-text string.
+
 5. **Output JSON**:
 {{
   "sections": {{
@@ -59,10 +68,10 @@ GENERATION RULES:
     "Location": "...",
     "Mode of Work": "...",
     "Job Summary": "...",
-    "Key Responsibilities": "...",
-    "Qualifications and Required Skills": "...",
-    "Good to Have Skills": "...",
-    "Soft Skills": "...",
+    "Key Responsibilities": ["...", "..."],
+    "Qualifications and Required Skills": ["...", "..."],
+    "Good to Have Skills": ["...", "..."],
+    "Soft Skills": ["...", "..."],
     "About Wissen Technology": "{WISSEN_ABOUT_CONTENT}",
     "Wissen Sites": "{WISSEN_SITES_CONTENT}"
   }}
@@ -70,7 +79,7 @@ GENERATION RULES:
 """.strip()
 
 JD_WITH_TEMPLATE_PROMPT = f"""
-You are an expert HR Content Architect. 
+You are an expert HR Content Architect.
 You are provided with a TRANSCRIPT/NOTES and a REFERENCE STRUCTURE.
 Your mission is to generate a high-fidelity Job Description that follows the REFERENCE STRUCTURE exactly.
 
@@ -79,12 +88,21 @@ STRICT BRANDING RULES:
 - If the template includes "Sites", use: {WISSEN_SITES_CONTENT}
 
 ELABORATION RULES:
-1. **Quality over Brevity**: Do not just repeat the notes. Expand them into polished, professional sentences. 
+1. **Quality over Brevity**: Do not just repeat the notes. Expand them into polished, professional sentences.
 2. **Factual Fidelity**: Do NOT invent technologies or skills not in the transcript. However, use professional terminology to describe the ones that ARE present.
-3. **Anti-Hallucination**: NEVER invent specific salary figures or specific hybrid schedules (e.g., "3 days in office") unless explicitly mentioned. 
+3. **Anti-Hallucination**: NEVER invent specific salary figures or specific hybrid schedules unless explicitly mentioned.
 4. **Smart Placeholder**: Instead of "Details to be finalized", use reasonable defaults for Wissen:
    - Location: Bangalore/Hyderabad (Wissen HQ)
    - Mode: Hybrid (As per Company Policy)
+
+CRITICAL FORMATTING RULES (MUST FOLLOW):
+- NEVER repeat or include the JSON key name inside its value. The key itself is the section heading.
+  BAD:  {{"Location": "**Location:** Remote"}}
+  GOOD: {{"Location": "Remote (Eastern Standard Time or Central Standard Time zone)"}}
+- NEVER use markdown syntax (##, **, __, *, >) inside the JSON values. Plain text only.
+- For list-type sections (Responsibilities, Skills), return an ARRAY OF STRINGS instead of a single formatted string. DO NOT use manual bullets or newlines.
+- Short metadata fields (Title, Experience, Location, Mode) must be a single clean string.
+
 5. **Output JSON**: Return EVERYTHING inside a "sections" key, matching the template labels EXACTLY.
 """.strip()
 
@@ -124,6 +142,7 @@ Rules:
 
 BROAD: <query>
 TARGETED: <query>
+STRICT: <query>
 """.strip()
 
 SCORE_PROMPT = """
@@ -261,4 +280,16 @@ RULES:
 - Output ONLY a JSON object with "hiring_title_key", "metadata_keys", and "body_keys".
 - ALWAYS prioritize keys related to Location, Experience, Salary/LPA, and Work Mode for "metadata_keys".
 - No preamble.
+""".strip()
+
+JD_UPGRADE_PROMPT = """
+You are a Professional Recruitment Copywriter.
+Your task is to take an "Original Draft" and "Additional Clarifications" (Q&A) and merge them into a single, polished, and comprehensive Job Description.
+
+STRICT RULES:
+1. **Seamless Integration**: Do not just append the Q&A. Rewrite the original sentences or add new ones where they fit logically (e.g., move salary answers to the compensation section, tech answers to the stack section).
+2. **Professional ELoquence**: Use high-impact verbs and professional terminology.
+3. **Structured Flow**: Ensure the resulting text flows naturally.
+4. **Preserve Facts**: Do not lose any information from either the original draft or the clarifications.
+5. **No Preamble**: Output ONLY the upgraded text. No "Here is your updated JD" or "Revised version:".
 """.strip()

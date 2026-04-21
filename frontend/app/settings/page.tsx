@@ -73,11 +73,12 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-5xl mx-auto px-8 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Settings</h1>
-          <p className="text-sm text-slate-400 mt-1">Manage your account, API keys, and security</p>
-        </div>
+      <div className="h-full overflow-y-auto w-full">
+        <div className="max-w-5xl mx-auto px-8 py-10">
+          <div className="mb-8">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Settings</h1>
+            <p className="text-sm text-slate-400 mt-1">Manage your account, API keys, and security</p>
+          </div>
 
         <div className="grid grid-cols-12 gap-5">
           {/* Row 1: Profile & Password side-by-side (8 + 4) */}
@@ -123,9 +124,30 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="px-7 py-6 flex flex-col gap-3 justify-center flex-1">
-               <button onClick={() => toast.info("Password reset enabled")}
-                className="w-full h-10 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider hover:bg-black transition-all flex items-center justify-center gap-2">
-                <Lock className="w-3.5 h-3.5" /> Reset Password
+                <div className="relative">
+                  <input
+                    type={showNewPw ? "text" : "password"}
+                    placeholder="New Password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full h-10 px-3.5 pr-10 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                  />
+                  <button type="button" onClick={() => setShowNewPw(!showNewPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    {showNewPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  placeholder="Confirm New Password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full h-10 px-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                />
+               <button onClick={handlePasswordChange} disabled={updatingPassword}
+                className="w-full h-10 mt-1 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider hover:bg-black transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                {updatingPassword ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                {updatingPassword ? "Updating..." : "Reset Password"}
                </button>
             </div>
           </div>
@@ -206,6 +228,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </AppShell>

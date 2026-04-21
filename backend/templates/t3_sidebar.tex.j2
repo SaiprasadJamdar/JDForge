@@ -1,70 +1,94 @@
 \documentclass[9pt,a4paper]{article}
 
-\usepackage[margin=0.5in]{geometry}
+\usepackage[top=0pt,bottom=0pt,left=0pt,right=0pt]{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage[normalem]{ulem}
-\usepackage{tikz}
+\usepackage{paracol}
 \usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{helvet}
+\usepackage[T1]{fontenc}
 \renewcommand{\familydefault}{\sfdefault}
 
-\definecolor{primary}{RGB}{0,102,153}
-\definecolor{panel}{RGB}{220,230,240}
-\definecolor{textgray}{RGB}{80,80,80}
+\definecolor{primary}{RGB}{37,99,235}
+\definecolor{panel}{RGB}{235,243,255}
+\definecolor{textgray}{RGB}{71,85,105}
+\definecolor{textdark}{RGB}{15,23,42}
+\definecolor{rulecol}{RGB}{203,213,225}
 
-\titleformat{\section}{\normalsize\bfseries\color{primary}}{}{0em}{}
-\titlespacing*{\section}{0pt}{5pt}{2pt}
-\setlist[itemize]{noitemsep, topsep=0pt, leftmargin=1.1em}
+%% Raggedright CRITICAL – prevents "JOB   SUMMARY" word-spreading
+\titleformat{\section}
+  {\raggedright\fontsize{7.5}{9}\selectfont\bfseries\color{primary}}
+  {}{0em}{\MakeUppercase}
+  [{\color{rulecol}\vspace{1.5pt}\hrule height 0.5pt\vspace{3pt}}]
+\titlespacing*{\section}{0pt}{9pt}{1pt}
+
+\setlist[itemize]{noitemsep,topsep=1pt,leftmargin=1.1em,
+  label={\color{primary}\tiny$\blacksquare$}}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{2pt}
+\setlength{\parskip}{2.5pt}
 
 \begin{document}
+\pagestyle{empty}
 
-\begin{tikzpicture}[remember picture,overlay]
-\fill[panel] (current page.north west) rectangle ([xshift=5cm]current page.south west);
-\end{tikzpicture}
+\columnratio{0.27}
+\setlength{\columnsep}{0pt}
 
-\begin{tabular}{@{\hspace{-9pt}}p{3.8cm}@{\hspace{1.2cm}}p{13.2cm}@{}}
+\begin{paracol}{2}
 
-\begin{minipage}[t]{\linewidth}
-\vspace{0pt}
-\includegraphics[width=3cm]{image.jpg}
+%% ─── LEFT SIDEBAR ────────────────────────────────────────────────────────────
+\backgroundcolor{c[0]}{panel}
+%% Padding via leftskip / rightskip – no minipage so content CAN break pages
+\setlength{\leftskip}{9pt}
+\setlength{\rightskip}{7pt}
+
+\vspace*{18pt}
+
+\noindent\includegraphics[width=4.3cm]{image.jpg}
 
 \vspace{10pt}
+\noindent{\color{primary!50!white}\hrule height 0.8pt}
+\vspace{10pt}
+
 <% for meta in metadata %>
-\textbf{<< meta.label >>}\\ << meta.value >>
-\vspace{6pt}
+\noindent{\fontsize{6.5}{8}\selectfont\bfseries\color{primary}\MakeUppercase{<< meta.label >>}}
+
+\vspace{1.5pt}
+\noindent{\fontsize{8}{11}\selectfont\color{textgray}\raggedright << meta.value >>}
+
+\vspace{9pt}
 <% endfor %>
-\end{minipage}
 
-&
+\switchcolumn
 
-\begin{minipage}[t]{\linewidth}
-\vspace{0pt}
+%% ─── RIGHT CONTENT ───────────────────────────────────────────────────────────
+%% No minipage – content flows across pages freely
+\setlength{\leftskip}{16pt}
+\setlength{\rightskip}{16pt}
 
-{\Large\bfseries\color{primary} << hiring_title >>}
+\vspace*{18pt}
 
-\vspace{4pt}
-\hrule
-\vspace{6pt}
+\noindent{\fontsize{18}{22}\selectfont\bfseries\color{textdark}\raggedright << hiring_title >>}
 
+\vspace{5pt}
+\noindent{\color{primary}\hrule height 2pt}
+\vspace{1.5pt}
+\noindent{\color{rulecol}\hrule height 0.4pt}
+\vspace{10pt}
 
 <% for section in body_sections %>
 \section*{<< section.title >>}
-{\color{textgray}
+\noindent{\fontsize{8.5}{12}\selectfont\color{textgray}
   <% if section.is_list %>
     \begin{itemize}
     << section.content >>
     \end{itemize}
   <% else %>
-    << section.content >>
+    \raggedright << section.content >>
   <% endif %>
 }
 <% endfor %>
 
-\end{minipage}
-\end{tabular}
-
+\end{paracol}
 \end{document}

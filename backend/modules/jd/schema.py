@@ -31,6 +31,7 @@ class JDOut(BaseModel):
     status: str
     content: str
     template_used: Optional[str]
+    accent_color: Optional[str]
     quality_score: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: Optional[datetime]

@@ -18,7 +18,16 @@ from backend.core.prompts import (
     REFINE_PROMPT,
     SEARCH_QUERY_PROMPT,
     SEARCH_CLARIFICATION_PROMPT,
+    JD_UPGRADE_PROMPT,
 )
+
+def upgrade_jd_text(text: str, clarifications: str, api_key: str | None = None,
+                    db: Session | None = None, user_id: UUID | None = None) -> str:
+    """Intelligently merges resolutions/answers into a base JD text block."""
+    system = JD_UPGRADE_PROMPT
+    content = f"### ORIGINAL DRAFT:\n{text}\n\n### ADDITIONAL CLARIFICATIONS (Q&A):\n{clarifications}"
+    
+    return _llm(system, content, api_key=api_key, db=db, user_id=user_id, tag="Upgrade")
 from backend.modules.jd.model import JD, JDCollaborator
 from backend.modules.auth.model import User
 from backend.modules.notifications.model import Notification
@@ -81,8 +90,15 @@ def split_transcript(transcript: str, api_key: str | None = None,
     user_content = f"TRANSCRIPT:\n{transcript}"
     data = _llm_json(system, user_content, api_key, db=db, user_id=user_id, tag="Split")
     roles = data.get("roles", [])
-    if not roles:
+    
+    if isinstance(roles, str):
+        roles = [{"detected_role": roles, "transcript_segment": transcript}]
+    elif isinstance(roles, dict):
+        roles = [roles]
+        
+    if not roles or not isinstance(roles, list):
         roles = [{"detected_role": "Unknown Role", "transcript_segment": transcript}]
+        
     return roles
 
 
@@ -153,11 +169,13 @@ def generate_boolean_queries(db: Session, jd: JD, api_key: str | None = None,
     except:
         jd_data = {"sections": {}}
 
-    # Return cached queries if they exist
+    # Return cached queries if they exist (and only if we have all 3 successful categories)
     if "search_queries" in jd_data:
-        return jd_data["search_queries"]
+        cached = jd_data["search_queries"]
+        if isinstance(cached, list) and len(cached) >= 3:
+            return cached
 
-    # If not cached, generate them
+    # If not cached or cached is invalid, generate them
     sections = jd_data.get("sections", {})
     # Flatten sections into a readable block for the LLM
     jd_text = "\n".join([f"{k}: {v}" for k, v in sections.items()])
@@ -170,17 +188,24 @@ def generate_boolean_queries(db: Session, jd: JD, api_key: str | None = None,
     for line in lines:
         if ":" in line:
             parts = line.split(":", 1)
-            label = parts[0].strip()
-            query = parts[1].strip()
-            if label.upper() in ["BROAD", "TARGETED", "STRICT"]:
-                queries.append({
-                    "label": label.capitalize(),
-                    "query": query
-                })
+            # Clean markdown formatting like **Label**
+            label = parts[0].strip().replace('*', '').replace('#', '').replace('_', '').strip()
+            # Clean markdown code blocks and quotes from query
+            query = parts[1].strip().strip('`"\'').replace('```', '').strip()
+            
+            # Check prefix for matching (e.g. if LLM returned "Broad Query")
+            if label.upper().startswith("BROAD"):
+                queries.append({"label": "Broad", "query": query})
+            elif label.upper().startswith("TARGETED") or label.upper().startswith("TARGET"):
+                queries.append({"label": "Targeted", "query": query})
+            elif label.upper().startswith("STRICT"):
+                queries.append({"label": "Strict", "query": query})
                 
     # Fallback if parsing failed
     if not queries:
-        queries = [{"label": "Generic", "query": raw}]
+        # Strip code formatting if it wrapped everything
+        clean_raw = raw.replace('```', '').strip()
+        queries = [{"label": "Generic", "query": clean_raw}]
     
     # Cache in JD content
     jd_data["search_queries"] = queries
@@ -216,8 +241,12 @@ def generate_and_save_jds(
     created_jds = []
     
     for role_info in detected_roles:
-        segment = role_info.get("transcript_segment", transcript_text)
-        role_label = role_info.get("detected_role", "Untitled Role")
+        if isinstance(role_info, str):
+            segment = transcript_text
+            role_label = role_info
+        else:
+            segment = role_info.get("transcript_segment", transcript_text)
+            role_label = role_info.get("detected_role", "Untitled Role")
         
         logger.info(f"Generating JD for detected role: {role_label}")
         

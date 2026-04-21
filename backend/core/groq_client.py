@@ -95,14 +95,43 @@ def _llm_json(system: str, user_content: str, api_key: str | None = None,
             
         data = json.loads(raw_response)
         
-        # ── Normalize lists to bulleted strings ──
-        def _normalize(obj):
+        # ── Normalize lists to bulleted strings and strip markdown artifacts ──
+        import re as _re
+
+        def _clean_value(key: str, val: str) -> str:
+            """Strip markdown formatting and redundant key repetition from LLM output."""
+            # Remove markdown headings (##, ###, etc.)
+            val = _re.sub(r'^#{1,6}\s*', '', val, flags=_re.MULTILINE)
+            # Remove markdown bold/italic (**text**, *text*, __text__, _text_)
+            val = _re.sub(r'\*\*([^*]+)\*\*', r'\1', val)
+            val = _re.sub(r'__([^_]+)__', r'\1', val)
+            val = _re.sub(r'\*([^*]+)\*', r'\1', val)
+            val = _re.sub(r'_([^_]+)_', r'\1', val)
+            # Remove blockquotes
+            val = _re.sub(r'^>\s*', '', val, flags=_re.MULTILINE)
+            # Strip redundant label prefix: if value starts with the key name followed by : or -
+            # e.g. key="Location", value="Location: Remote" → "Remote"
+            escaped_key = _re.escape(key.strip())
+            val = _re.sub(rf'^{escaped_key}\s*[:\-–]\s*', '', val, flags=_re.IGNORECASE).strip()
+            return val.strip()
+
+        def _normalize(obj, depth=0):
             if isinstance(obj, dict):
-                for k, v in obj.items():
+                for k, v in list(obj.items()):
                     if isinstance(v, list):
-                        obj[k] = "\n".join([f"• {item}" for item in v])
+                        # Only convert to bullet strings for content sections (depth > 0 means
+                        # we're inside a 'sections' dict). At depth 0 (top-level response),
+                        # lists like metadata_keys/body_keys should stay as lists.
+                        if depth > 0 and all(isinstance(i, str) and len(i) > 30 for i in v):
+                            # Long strings in a list = content bullets
+                            obj[k] = "\n".join([f"• {_clean_value('', str(item))}" for item in v])
+                        else:
+                            # Recurse into list items that are dicts
+                            obj[k] = [_normalize(i, depth + 1) if isinstance(i, dict) else i for i in v]
                     elif isinstance(v, dict):
-                        _normalize(v)
+                        _normalize(v, depth + 1)
+                    elif isinstance(v, str):
+                        obj[k] = _clean_value(k, v)
             return obj
 
         data = _normalize(data)

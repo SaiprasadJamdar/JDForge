@@ -50,6 +50,7 @@ export default function DashboardPage() {
   const [gapAnswers, setGapAnswers] = useState<Record<number, string>>({})
   const [isGapFlowActive, setIsGapFlowActive] = useState(false)
   const [localAnswer, setLocalAnswer] = useState("")
+  const [isUpgrading, setIsUpgrading] = useState(false)
 
   // Authentication Redirect
   useEffect(() => {
@@ -212,23 +213,48 @@ export default function DashboardPage() {
     }
   }
 
-  const handleFinishGapFlow = () => {
-    let extraNotes = "\n\n--- ADDITIONAL CLARIFICATIONS ---\n"
+  const handleFinishGapFlow = async () => {
+    let clarifications = ""
     let added = false
     Object.entries(gapAnswers).forEach(([idx, answer]) => {
       const q = clarificationQuestions[parseInt(idx)]
       if (answer && answer.trim()) {
-        extraNotes += `Q: ${q}\nA: ${answer}\n\n`
+        clarifications += `Q: ${q}\nA: ${answer}\n\n`
         added = true
       }
     })
 
-    if (added) {
-      setPastedText(prev => prev + extraNotes)
-      toast.success("JD text updated with your clarifications!")
+    if (!added) {
+      setIsGapFlowActive(false)
+      setClarificationQuestions([])
+      return
     }
-    setIsGapFlowActive(false)
-    setClarificationQuestions([])
+
+    setIsUpgrading(true)
+    try {
+      const res = await fetchApi("/jds/upgrade", {
+        method: "POST",
+        body: JSON.stringify({ 
+          text: pastedText,
+          clarifications: clarifications
+        })
+      })
+      if (res.upgraded_text) {
+        setPastedText(res.upgraded_text)
+        toast.success("JD text integrated & upgraded by AI!")
+      } else {
+        setPastedText(prev => prev + "\n\n--- ADDITIONAL NOTES ---\n" + clarifications)
+      }
+    } catch (err) {
+      console.error("Upgrade failed", err)
+      toast.error("AI merge failed, appending notes instead.")
+      setPastedText(prev => prev + "\n\n--- ADDITIONAL NOTES ---\n" + clarifications)
+    } finally {
+      setIsUpgrading(false)
+      setIsGapFlowActive(false)
+      setClarificationQuestions([])
+      setGapAnswers({})
+    }
   }
 
   const handleNextQuestion = (answer?: string) => {
@@ -303,9 +329,9 @@ export default function DashboardPage() {
         setJds((prev: any[]) => [...jds, ...prev])
         router.push(`/builder?jd_id=${jds[0].id}`)
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error("Failed to process file. Please check that FFmpeg is installed.")
+      toast.error(err?.message || "Failed to process file. Check server logs.")
     } finally {
       setIsProcessing(false)
     }
@@ -430,9 +456,12 @@ export default function DashboardPage() {
                               )}
                               <Button 
                                 onClick={() => { handleNextQuestion(localAnswer); setLocalAnswer(""); }}
-                                className="bg-[#D97706] hover:bg-[#92400E] text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm"
+                                disabled={isUpgrading}
+                                className="bg-[#D97706] hover:bg-[#92400E] text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm min-w-[120px]"
                               >
-                                {currentQuestionIndex === clarificationQuestions.length - 1 ? "Finish & Update" : "Next Details"}
+                                {isUpgrading ? (
+                                  <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Merging...</>
+                                ) : (currentQuestionIndex === clarificationQuestions.length - 1 ? "Finish & Integrate" : "Next Details")}
                               </Button>
                             </div>
                           </div>

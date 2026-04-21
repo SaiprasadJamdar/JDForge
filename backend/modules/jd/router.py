@@ -35,6 +35,7 @@ from backend.modules.jd.service import (
     create_jd_manually,
     suggest_clarifications,
     apply_score_recommendations,
+    upgrade_jd_text,
 )
 
 from backend.modules.transcripts.service import get_transcript
@@ -351,5 +352,20 @@ def clarify(
     
     questions = suggest_clarifications(text, template, api_key=groq_key, db=db, user_id=current_user.id)
     return {"questions": questions}
+
+
+@router.post("/upgrade")
+def upgrade(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    text = payload.get("text", "")
+    clarifications = payload.get("clarifications", "")
+    userobj = db.query(User).filter(User.id == current_user.id).first()
+    groq_key = decrypt_key(userobj.groq_api_key) if userobj else None
+    
+    upgraded = upgrade_jd_text(text, clarifications, api_key=groq_key, db=db, user_id=current_user.id)
+    return {"upgraded_text": upgraded}
 
 

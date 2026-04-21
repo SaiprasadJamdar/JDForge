@@ -15,6 +15,7 @@ from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader
 from backend.core.groq_client import LLAMA_MODEL, get_groq_client, _llm, _llm_json
+from backend.core.prompts import LATEX_MAPPING_PROMPT
 from backend.modules.auth.model import TokenLog
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -346,21 +347,23 @@ def render_latex(jd_content: dict, template_id: str = 't1_classic', accent_color
     if not mapping:
         mapping = {"hiring_title_key": "Hiring Title", "metadata_keys": [], "body_keys": []}
 
-    # 2. Heuristic Fallback if AI mapping is empty
-    if not mapping["metadata_keys"] and not mapping["body_keys"]:
-        # Title is the first key or 'Hiring Title'
-        mapping["hiring_title_key"] = 'Hiring Title' if 'Hiring Title' in sections else list(sections.keys())[0] if sections else 'Hiring Title'
-        
-        # Short values go to metadata
-        for k, v in sections.items():
-            if k == mapping["hiring_title_key"]: continue
-            text_val = _strip_html(str(v))
-            if len(text_val) < 60 and len(mapping["metadata_keys"]) < 4:
-                mapping["metadata_keys"].append(k)
-            else:
-                mapping["body_keys"].append(k)
+    # 2. Always-on heuristic: ensure the title key is valid
+    if mapping["hiring_title_key"] not in sections:
+        mapping["hiring_title_key"] = 'Hiring Title' if 'Hiring Title' in sections else (list(sections.keys())[0] if sections else 'Hiring Title')
 
-    # 3. Pull actual content using the mapped keys
+    # 3. Ensure ALL sections are covered — fill any gaps from AI mapping
+    #    using a simple heuristic: short values → metadata, long values → body
+    already_mapped = {mapping["hiring_title_key"]} | set(mapping["metadata_keys"]) | set(mapping["body_keys"])
+    for k, v in sections.items():
+        if k in already_mapped:
+            continue
+        text_val = _strip_html(str(v))
+        if len(text_val) < 80 and len(mapping["metadata_keys"]) < 4:
+            mapping["metadata_keys"].append(k)
+        else:
+            mapping["body_keys"].append(k)
+
+    # 4. Pull actual content using the mapped keys
     ctx = {
         'hiring_title': _html_to_latex(str(sections.get(mapping["hiring_title_key"], 'Job Description'))),
         'metadata':     [],
@@ -394,6 +397,7 @@ def render_latex(jd_content: dict, template_id: str = 't1_classic', accent_color
             'content': _bullets_to_items(str(content)) if render_as_list else _html_to_latex(str(content)),
             'is_list': render_as_list
         })
+
 
 
 

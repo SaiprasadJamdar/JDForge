@@ -16,9 +16,11 @@ import { Suspense } from "react"
 
 export default function BuilderPage() {
   return (
-    <Suspense fallback={<AppShell><div className="flex w-full items-center justify-center p-20"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div></AppShell>}>
-      <BuilderPageContent />
-    </Suspense>
+    <AppShell>
+      <Suspense fallback={<div className="flex w-full items-center justify-center p-20 flex-1 h-full"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div>}>
+        <BuilderPageContent />
+      </Suspense>
+    </AppShell>
   )
 }
 
@@ -312,8 +314,12 @@ function BuilderPageContent() {
   const [selectedJDId, setSelectedJDId] = useState<string>(urlJdId || "")
   const [cleanTranscript, setCleanTranscript] = useState<string>("")
   const [collaborators, setCollaborators] = useState<any[]>([])
+  const lastSwitchedRef = useRef<string | null>(null)
 
-  const currentJD = jds.find((j: any) => j.id === (selectedJDId || urlJdId)) || jds[0]
+  const currentJD = useMemo(() => {
+    return jds.find((j: any) => j.id === (selectedJDId || urlJdId)) || jds[0]
+  }, [jds, selectedJDId, urlJdId])
+
   const lastSelectionRange = useRef<Range | null>(null)
   const recognitionRef = useRef<any>(null)
 
@@ -357,8 +363,10 @@ function BuilderPageContent() {
   // Also re-runs whenever the URL ?jd_id param changes (e.g. browser back/forward or switchJD)
   useEffect(() => {
     if (!isLoaded || jds.length === 0) return
+    
+    // Only organic URL changes (browser back/forward) or first load should trigger this
     const target = urlJdId || jds[0].id
-      if (target !== selectedJDId) {
+    if (target !== selectedJDId && target !== lastSwitchedRef.current) {
         setSelectedJDId(target)
         
         const jd = jds.find(j => j.id === target)
@@ -373,7 +381,7 @@ function BuilderPageContent() {
         setCurrentReport("")
         setIsRefining(false)
         setIsEvaluating(false)
-      }
+    }
   }, [isLoaded, jds, urlJdId, selectedJDId])
 
   useEffect(() => {
@@ -569,8 +577,11 @@ function BuilderPageContent() {
 
   const switchJD = (jdId: string) => {
     if (jdId === selectedJDId) return
+    lastSwitchedRef.current = jdId
+    
     // Persist template for current JD before switching
     if (currentJD?.id) localStorage.setItem(`jdforge_template_${currentJD.id}`, selectedTemplate)
+    
     // Load template for target JD immediately (don't wait for effect)
     const saved = localStorage.getItem(`jdforge_template_${jdId}`) || 't1_classic'
     setSelectedTemplate(saved)
@@ -581,8 +592,9 @@ function BuilderPageContent() {
     setCurrentReport("")
     setIsRefining(false)
     setIsEvaluating(false)
-    // Also update URL for bookmarkability (shallow replace to avoid full navigation)
-    router.replace(`/builder?jd_id=${jdId}`, { scroll: false })
+    
+    // Also update URL for bookmarkability without triggering Next.js soft-navigation flicker
+    window.history.replaceState(null, '', `?jd_id=${jdId}`)
   }
 
   const triggerPreview = (templateId?: string) => {
@@ -599,11 +611,10 @@ function BuilderPageContent() {
     if (currentJD?.id) localStorage.setItem(`jdforge_template_${currentJD.id}`, templateId)
   }
 
-  if (!currentJD) return <AppShell><div className="p-20 text-slate-400">JD not found.</div></AppShell>
+  if (!currentJD && isLoaded) return <div className="p-20 text-slate-400">JD not found.</div>
+  if (!currentJD) return <div className="flex w-full items-center justify-center p-20 flex-1"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div>
 
   const sections = currentJD?.content?.sections || {}
-
-
 
   const totalSections = Object.keys(sections).length
   const filledCount = Object.values(sections).filter(v => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : String(v).trim()).length > 0).length
@@ -611,8 +622,7 @@ function BuilderPageContent() {
   const words = Object.values(sections).reduce((a: number, v: any) => a + (typeof v === "string" ? v.replace(/<[^>]*>/g, "") : String(v)).trim().split(/\s+/).filter(Boolean).length, 0)
 
   return (
-    <AppShell>
-      <div className="flex-1 w-full flex overflow-hidden h-full min-h-0">
+    <div className="flex-1 w-full flex overflow-hidden h-full min-h-0">
 
         {/* ═══ LEFT: ROLES + TEAM ═══ */}
         <div className="w-[260px] shrink-0 flex flex-col h-full border-r border-slate-100 bg-white">
@@ -1120,7 +1130,6 @@ function BuilderPageContent() {
             </div>
           )
         })()}
-      </div>
 
       {showAddSectionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
@@ -1171,6 +1180,6 @@ function BuilderPageContent() {
           </div>
         </div>
       )}
-    </AppShell>
+    </div>
   )
 }
