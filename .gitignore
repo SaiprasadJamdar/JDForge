@@ -12,3 +12,6 @@ __pycache__
 
 # Ignore specific search_queries DATA folder if it exists at root
 /search_queries
+
+# Node modules
+node_modules/

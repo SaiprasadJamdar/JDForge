@@ -17,7 +17,10 @@ class JD(Base):
     slug          = Column(String(500), nullable=False)          # e.g. "data_analyst_9722ee"
     status        = Column(String(20), default="draft")          # 'draft' | 'finalized'
     content       = Column(Text, nullable=False)                  # full JD markdown text
-    template_used = Column(Text)                                  # reference template (if supplied)
+    template_used = Column(Text)                                    # reference template or ID
+
+    accent_color  = Column(String(50))                              # hex color
+
     quality_score = Column(JSONB)                                 # {overall, fidelity, completeness, sections}
     created_at    = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at    = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)

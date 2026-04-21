@@ -3,15 +3,22 @@
 \usepackage[margin=0.5in]{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage[normalem]{ulem}
 \usepackage{tikz}
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
 
 \definecolor{primary}{RGB}{0,102,153}
-\definecolor{sidebar}{RGB}{200,220,240}
+\definecolor{sidebar}{RGB}{235,242,250}
 \definecolor{textgray}{RGB}{60,60,60}
 
+\titleformat{\section}{\large\bfseries\color{primary}}{}{0em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\setlist[itemize]{noitemsep, topsep=1pt, leftmargin=1.2em}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{4pt}
 
@@ -22,33 +29,24 @@
 ([xshift=6.5cm]current page.south west);
 \end{tikzpicture}
 
-\begin{minipage}[t]{0.30\textwidth}
-\vspace{1.2cm}
+\begin{minipage}[t]{5.5cm}
+\vspace{0pt}
 \centering
-\hspace{-2cm}
 \includegraphics[width=4cm]{image.jpg}
 
 \vspace{1.5cm}
 
 \raggedright
-\textbf{\color{primary}Location}\\
-<< location >>
-
-\vspace{10pt}
-\textbf{\color{primary}Job Type}\\
-<< job_type >>
-
-\vspace{10pt}
-\textbf{\color{primary}Experience}\\
-<< experience >>
-
-\vspace{10pt}
-\textbf{\color{primary}Mode of Work}\\
-<< mode_of_work >>
+\color{black}
+<% for meta in metadata %>
+\textbf{\color{primary}<< meta.label >>}\\
+<< meta.value >>
+\vspace{12pt}
+<% endfor %>
 \end{minipage}
 \hfill
-\begin{minipage}[t]{0.65\textwidth}
-\vspace{1.2cm}
+\begin{minipage}[t]{12.5cm}
+\vspace{0pt}
 
 {\Huge\bfseries\color{primary} << hiring_title >>}
 
@@ -56,45 +54,21 @@
 \hrule height 0.8pt
 \vspace{12pt}
 
-\textbf{\large Job Summary}
+% Main content box that can break across pages
+\begin{tcolorbox}[colback=white,colframe=white,arc=0pt,boxrule=0pt,left=0pt,right=0pt,top=0pt,bottom=0pt,breakable]
+<% for section in body_sections %>
+\section*{<< section.title >>}
 {\color{textgray}
-
-<< job_summary >>
+  <% if section.is_list %>
+    \begin{itemize}
+    << section.content >>
+    \end{itemize}
+  <% else %>
+    << section.content >>
+  <% endif %>
 }
-
-\vspace{10pt}
-
-<% if responsibilities %>
-\textbf{\large Key Responsibilities}
-\begin{itemize}[leftmargin=1.5em]
-<< responsibilities >>
-\end{itemize}
-<% endif %>
-
-\vspace{10pt}
-
-<% if qualifications %>
-\textbf{\large Qualifications \& Required Skills}
-\begin{itemize}[leftmargin=1.5em]
-<< qualifications >>
-\end{itemize}
-<% endif %>
-
-\vspace{10pt}
-
-<% if good_to_have %>
-\textbf{\large Good to Have}
-\begin{itemize}[leftmargin=1.5em]
-<< good_to_have >>
-\end{itemize}
-<% endif %>
-
-<% if soft_skills %>
-\textbf{\large Soft Skills}
-\begin{itemize}[leftmargin=1.5em]
-<< soft_skills >>
-\end{itemize}
-<% endif %>
+<% endfor %>
+\end{tcolorbox}
 
 \end{minipage}
 

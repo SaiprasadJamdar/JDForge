@@ -46,6 +46,15 @@ export function useJDs() {
   }, []);
 
   const updateJD = async (updatedJD: any) => {
+    // Ensure content is parsed if it's a string (prevents UI "vanishing" bug)
+    if (typeof updatedJD.content === 'string') {
+      try {
+        updatedJD.content = JSON.parse(updatedJD.content);
+      } catch (e) {
+        console.error("Failed to parse JD content in updateJD:", e);
+      }
+    }
+
     // 1. Optimistic UI update only (Lightning Fast)
     const newJds = jds.map(jd => jd.id === updatedJD.id ? updatedJD : jd);
     setJds(newJds);

@@ -33,37 +33,60 @@ Return STRICTLY raw JSON:
 }
 """.strip()
 
-JD_PROMPT = """
-You are an expert HR content strategist and technical recruiter for Wissen Technology.
-Convert the transcript segment into a complete, publish-ready Job Description in JSON format.
+WISSEN_ABOUT_CONTENT = """Wissen Technology is a specialized global technology company that delivers high-end consulting for organizations in the Banking & Finance, Telecom, and Healthcare domains. Established in 2015, we are part of the Wissen Group, which has been serving global clients since 2000. We leverage a strong product engineering mindset and unique delivery models (like outcome-based projects and agile pods) to deliver mission-critical, custom-built products for our partners."""
 
-CRITICAL RULES:
-1. NEVER output "Discussed in Interview", "To be confirmed", "N/A", or bare empty strings for any section.
-2. ALWAYS infer reasonable, professional content from context clues in the transcript.
-3. For sections with limited info, write professional standard content that fits the role.
-4. Use ATS-friendly, action-oriented language with strong verbs.
-5. No vague filler ("dynamic team", "fast-paced environment").
-6. Key Responsibilities and Qualifications MUST be non-empty bullet lists or comma-separated items.
-7. Output STRICTLY JSON matching exactly this structure — no markdown fences, no explanation:
+WISSEN_SITES_CONTENT = "India | USA | UK | Australia | Mexico | Canada"
 
-{
-  "template_name": "wissen_standard",
-  "sections": {
-    "Hiring Title": "Professional Job Title (Focus on core technical competency discussed, e.g. 'React Developer' not 'Upper Management')",
-    "Job Summary": "2-3 professional sentences summarizing the role, its purpose, and tech stack context.",
-    "Experience": "e.g. 5+ years of experience in Java backend development",
-    "Location": "e.g. Bangalore, India / Remote",
-    "Mode of Work": "e.g. Hybrid / Full-Time",
-    "Key Responsibilities": "• Responsibility one\n• Responsibility two\n• Responsibility three",
-    "Qualifications and Required Skills": "• Skill or qualification\n• Skill or qualification",
-    "Good to Have Skills": "• Nice-to-have skill\n• Nice-to-have skill",
-    "Soft Skills": "• Communication\n• Team collaboration\n• Problem-solving",
-    "Wissen Sites": "Wissen Technology operates globally across US, India, UK, Australia, Mexico, and Canada."
-  }
-}
+JD_PROMPT = f"""
+You are a Lead IT Recruiter and Content Strategist at Wissen Technology.
+Your task is to transform a transcript into a comprehensive, high-impact Job Description.
+
+CORE IDENTITY (Always use these if the section exists):
+- About Wissen Technology: {WISSEN_ABOUT_CONTENT}
+- Wissen Sites / Locations: {WISSEN_SITES_CONTENT}
+
+GENERATION RULES:
+1. **Eloquence**: Write in a sophisticated, professional, and exciting tone. Each section should look like it was written by a human recruitment expert.
+2. **Factual Expansion**: Take the skills and responsibilities from the transcript and elaborate them into professional bullet points. 
+   - *Example*: If transcript says "needs java", write "Develop robust, scalable backend services using Java 17+ and Spring Boot frameworks."
+3. **No Hallucinated Numbers**: NEVER invent a specific LPA budget or a specific number of "WFH days" (e.g. 2 days) unless stated.
+4. **Smart Defaulting**: If Location is missing, use "Bangalore / Hyderabad / Pune (Base Location)". If Experience is missing, use "Mid-Senior (Relevant to Role)".
+5. **Output JSON**:
+{{
+  "sections": {{
+    "Hiring Title": "...",
+    "Experience": "...",
+    "Location": "...",
+    "Mode of Work": "...",
+    "Job Summary": "...",
+    "Key Responsibilities": "...",
+    "Qualifications and Required Skills": "...",
+    "Good to Have Skills": "...",
+    "Soft Skills": "...",
+    "About Wissen Technology": "{WISSEN_ABOUT_CONTENT}",
+    "Wissen Sites": "{WISSEN_SITES_CONTENT}"
+  }}
+}}
 """.strip()
 
-JD_WITH_TEMPLATE_PROMPT = JD_PROMPT
+JD_WITH_TEMPLATE_PROMPT = f"""
+You are an expert HR Content Architect. 
+You are provided with a TRANSCRIPT/NOTES and a REFERENCE STRUCTURE.
+Your mission is to generate a high-fidelity Job Description that follows the REFERENCE STRUCTURE exactly.
+
+STRICT BRANDING RULES:
+- If the template includes "About Wissen", use: {WISSEN_ABOUT_CONTENT}
+- If the template includes "Sites", use: {WISSEN_SITES_CONTENT}
+
+ELABORATION RULES:
+1. **Quality over Brevity**: Do not just repeat the notes. Expand them into polished, professional sentences. 
+2. **Factual Fidelity**: Do NOT invent technologies or skills not in the transcript. However, use professional terminology to describe the ones that ARE present.
+3. **Anti-Hallucination**: NEVER invent specific salary figures or specific hybrid schedules (e.g., "3 days in office") unless explicitly mentioned. 
+4. **Smart Placeholder**: Instead of "Details to be finalized", use reasonable defaults for Wissen:
+   - Location: Bangalore/Hyderabad (Wissen HQ)
+   - Mode: Hybrid (As per Company Policy)
+5. **Output JSON**: Return EVERYTHING inside a "sections" key, matching the template labels EXACTLY.
+""".strip()
 
 REFINE_PROMPT = """
 You are an expert HR content strategist AI. The user has requested to refine SPECIFIC targeted sections of their generated Job Description.
@@ -73,8 +96,10 @@ We will pass you a JSON object containing the current text for ONLY the sections
 
 Rules:
 1. Follow the User's Prompt meticulously, ensuring the tone is ATS-friendly, professional, and action-oriented.
-2. Return STRICTLY a JSON object matching the exact keys provided in the input context. Do not invent new section titles.
-3. Output ONLY the updated JSON mapping for those exact targeted keys. No explanations, no markdown fences.
+2. PRESERVE all existing HTML tags (<u>, <b>, <i>, etc.) that exist in the targeted sections. Do not strip them.
+3. Return a JSON object containing the updated text for targeted sections.
+4. If the user prompt explicitly asks to 'add', 'include', or 'create' a new section not in the targeted list, you MAY include a new key-value pair for it.
+5. Output ONLY the updated JSON mapping. No explanations, no markdown fences.
 
 Example Input context:
 {"Targeted Sections": {"Job Summary": "We need a dev"}, "User Prompt": "Make it sound exciting."}
@@ -99,26 +124,31 @@ Rules:
 
 BROAD: <query>
 TARGETED: <query>
-STRICT: <query>
 """.strip()
 
 SCORE_PROMPT = """
-You are a HYPER-CRITICAL JD Quality Auditor. Your job is to find faults, gaps, and inaccuracies. 
-You are comparing a generated Job Description (JD) against a source transcript.
+You are a Senior HR Auditor and Professional Content Strategist. 
+Your task is to evaluate a Job Description (JSON) for professional excellence, structural integrity, and HR best practices.
 
-SCORING RULES (BE STRICTURE):
-1. Gibberish/Placeholder Check: If the JD contains placeholder text like "[Enter info]", "To be confirmed", "N/A", or repeated gibberish, the Overall Score MUST be below 40%.
-2. Fidelity Check: If the transcript mentions a specific skill or tool and it is MISSING from the JD, penalize the Fidelity score by 20 points per missing item.
-3. Completeness Check: A professional JD MUST have Title, Summary, Responsibilities, and Skills. If any full section is missing or contains less than 10 words, score that section 0%.
-4. Don't be "nice". An average JD should score around 60%. Only perfect, highly detailed JDs get 90+.
+EVALUATION CRITERIA (Strictly HR-Oriented):
+1. **Professionalism**: Does it use strong action verbs? Avoids generic fluff?
+2. **Structural Completeness**: Every high-end JD MUST have: Hiring Title, Summary, Responsibilities, Key Skills, and Company Context.
+3. **Internal Consistency**: Do the skills and responsibilities align with the Hiring Title?
+4. **Wissen Branding**: Does it include or reference "About Wissen Technology" and "Wissen Sites"?
+5. **Precision**: Are the experience and location requirements clear and well-formatted?
 
-Return your evaluation in EXACTLY this format — no extra text before or after:
+STRICT RULES:
+- DO NOT rely on or mention any external transcript info unless provided as high-level context. 
+- Focus ONLY on the JSON structure provided.
+- If a section is very short (< 10 words) or contains placeholders, score it low (< 30%).
+
+Return your evaluation in EXACTLY this format:
 
 === JD QUALITY SCORING REPORT ===
 Position Evaluated  : [job_title]
 Overall Score       : [0-100]%
-Transcript Fidelity : [0-100]%
-Completeness Score  : [0-100]%
+Language Quality    : [0-100]% (HR Tone, Action Verbs)
+Completeness Score  : [0-100]% (Are all sections present and detailed?)
 
 --- SECTION BREAKDOWN ---
 Role Summary        : [0-100]%
@@ -127,19 +157,13 @@ Required Skills     : [0-100]%
 Qualifications      : [0-100]%
 Company Context     : [0-100]%
 
---- MISSING INFO ---
-[list each missing item with ✘ prefix, or write: ✔ None]
-
---- BIAS FLAGS ---
-[list bias detected with ✘ prefix, or write: ✔ None detected]
-
---- RECOMMENDATIONS ---
-[list each with → prefix]
+--- IMPROVEMENT RECOMMENDATIONS ---
+[list Each with → prefix. Focus on adding specifics or fixing tone.]
 
 --- JSON ---
 {
   "overall_score": <int>,
-  "transcript_fidelity_score": <int>,
+  "language_quality": <int>,
   "completeness_score": <int>,
   "section_scores": {
     "role_summary": <int>,
@@ -148,8 +172,6 @@ Company Context     : [0-100]%
     "qualifications": <int>,
     "company_context": <int>
   },
-  "missing_critical_info": [],
-  "bias_flags": [],
   "recommendations": []
 }
 """.strip()
@@ -197,4 +219,46 @@ Return a JSON object with the following fields:
 11. "accentBorderColor": (Hex code for borders/boxes if seen)
 
 Only return the JSON. No preamble.
+""".strip()
+
+SEARCH_CLARIFICATION_PROMPT = """
+You are an Intelligence Analyst for a Recruitment Firm.
+Your goal is to cross-reference a REFERENCE TEMPLATE with a set of TRANSCRIPT/NOTES to find substantive gaps.
+
+DO NOT JUST LIST THE HEADERS FROM THE TEMPLATE. THAT IS BORING.
+Instead, find where the notes are VAGUE, CONTRADICTORY, or INCOMPLETE relative to the template.
+
+Generate EXACTLY 6 precision questions that extract "Missing Facts".
+Examples of Precision vs. Boring:
+- BORING: "What is the tech stack?"
+- PRECISION: "You mentioned Spark; are there specific versions or libraries like PySpark that are mandatory?"
+- BORING: "What is the work mode?"
+- PRECISION: "You mentioned Hybrid; how many days per week are mandatory in the office?"
+- BORING: "What is the experience?"
+- PRECISION: "Is the '8 years' requirement a hard limit, or are you open to 5-7 years for a strong candidate?"
+
+STRICT RULES:
+1. Indian Context (LPA, Notice Period, City) always prioritized.
+2. If the notes are detailed for a section, DO NOT ask about it. Move to the next gap.
+3. Keep each question short and high-impact.
+4. Output ONLY the 6 questions as a bulleted list. No preamble.
+""".strip()
+
+LATEX_MAPPING_PROMPT = """
+You are a LaTeX Document Architect.
+Identify which KEYS from the provided JSON should be mapped to specific layout slots.
+
+TEMPLATE SLOTS:
+1. "hiring_title_key": The key representing the main job title.
+2. "metadata_keys": A list of up to 4 keys for the sidebar/header (e.g., Location, Experience, Salary).
+3. "body_keys": A list of all other keys for the main content flow.
+
+INPUT JSON:
+{jd_json}
+
+RULES:
+- You must use EXACT KEYS from the INPUT JSON.
+- Output ONLY a JSON object with "hiring_title_key", "metadata_keys", and "body_keys".
+- ALWAYS prioritize keys related to Location, Experience, Salary/LPA, and Work Mode for "metadata_keys".
+- No preamble.
 """.strip()

@@ -5,7 +5,7 @@ import {
   CheckCircle2, Circle, ChevronDown, Code2, Mic, MicOff, Pencil,
   CheckCircle, ArrowRight, Loader2, Plus, Sparkles, Copy, Crown,
   Users, Mail, Send, Eye, EyeOff, Download, X, FileText,
-  Bold, Italic, Underline, Strikethrough, PlusCircle, RefreshCw, Search
+  Bold, Italic, Underline, Strikethrough, PlusCircle, RefreshCw, Search, Trash2
 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useJDs } from "@/lib/useJDs"
@@ -27,7 +27,7 @@ const TEMPLATES = [
   { id: "t1_classic",  name: "Classic",    desc: "Single col · Logo top-right",         layout: "classic"  },
   { id: "t2_boxed",    name: "Boxed",      desc: "tcolorbox sections · Centered logo",   layout: "boxed"    },
   { id: "t3_sidebar",  name: "Sidebar",    desc: "TikZ blue sidebar · Split layout",     layout: "sidebar"  },
-  { id: "t4_logoleft", name: "Logo Left",  desc: "Left header · Logo anchored right",    layout: "classic"  },
+  { id: "t4_logoright", name: "Logo Right",  desc: "Right header · Logo anchored right",    layout: "classic"  },
   { id: "t5_twocol",   name: "Two Column", desc: "Centered logo · Multicols",            layout: "twocol"   },
   { id: "t6_accent",   name: "Accent",     desc: "Left-border headings · Bold",          layout: "accent"   },
   { id: "t7_compact",  name: "Compact",    desc: "Tight spacing · Professional",         layout: "classic"  },
@@ -135,8 +135,8 @@ function TemplateThumbnail({ layout, active }: { layout: string, active: boolean
 
 // ─── Inline PDF Preview (center canvas mode) ──────────────────────────────────
 function InlinePreview({
-  jdId, templateId, accentColor, onBack, onProceed
-}: { jdId: string, templateId: string, accentColor: string, onBack: () => void, onProceed: () => void }) {
+  jdId, templateId, accentColor, onBack, onProceed, currentContent
+}: { jdId: string, templateId: string, accentColor: string, onBack: () => void, onProceed: () => void, currentContent: any }) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -161,7 +161,14 @@ function InlinePreview({
         const token = localStorage.getItem("token")
         const res = await fetch(
           `${API_BASE_URL}/jds/${jdId}/export/pdf?template_id=${templateId}&preview=true${accentColor ? `&accent_color=${accentColor.replace('#','')}` : ''}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          { 
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}) 
+            },
+            body: JSON.stringify({ content: JSON.stringify(currentContent) })
+          }
         )
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: "Compilation failed" }))
@@ -178,7 +185,7 @@ function InlinePreview({
     }
     load()
     return () => { if (url) URL.revokeObjectURL(url) }
-  }, [jdId, templateId])
+  }, [jdId, templateId, accentColor, currentContent])
 
   const download = () => {
     if (!pdfUrl) return
@@ -306,7 +313,7 @@ function BuilderPageContent() {
   const [cleanTranscript, setCleanTranscript] = useState<string>("")
   const [collaborators, setCollaborators] = useState<any[]>([])
 
-  const currentJD = jds.find((j: any) => j.id === selectedJDId)
+  const currentJD = jds.find((j: any) => j.id === (selectedJDId || urlJdId)) || jds[0]
   const lastSelectionRange = useRef<Range | null>(null)
   const recognitionRef = useRef<any>(null)
 
@@ -351,15 +358,31 @@ function BuilderPageContent() {
   useEffect(() => {
     if (!isLoaded || jds.length === 0) return
     const target = urlJdId || jds[0].id
-    if (target && target !== selectedJDId) {
-      setSelectedJDId(target)
-      const saved = localStorage.getItem(`jdforge_template_${target}`) || 't1_classic'
-      setSelectedTemplate(saved)
-      setViewMode('edit')
-      setShowEvaluation(false)
-      setCollapsed({})
-    }
-  }, [isLoaded, jds, urlJdId])
+      if (target !== selectedJDId) {
+        setSelectedJDId(target)
+        
+        const jd = jds.find(j => j.id === target)
+        const savedTpl = localStorage.getItem(`jdforge_template_${target}`) || jd?.template_used || 't1_classic'
+        const savedClr = localStorage.getItem(`jdforge_accent_${target}`) || jd?.accent_color || '#2563EB'
+        setSelectedTemplate(savedTpl)
+        setAccentColor(savedClr)
+
+        setViewMode('edit')
+        setShowEvaluation(false)
+        setCollapsed({})
+        setCurrentReport("")
+        setIsRefining(false)
+        setIsEvaluating(false)
+      }
+  }, [isLoaded, jds, urlJdId, selectedJDId])
+
+  useEffect(() => {
+    if (selectedJDId) localStorage.setItem(`jdforge_template_${selectedJDId}`, selectedTemplate)
+  }, [selectedTemplate, selectedJDId])
+
+  useEffect(() => {
+    if (selectedJDId) localStorage.setItem(`jdforge_accent_${selectedJDId}`, accentColor)
+  }, [accentColor, selectedJDId])
 
   useEffect(() => {
     if (!selectedJDId) return
@@ -389,15 +412,13 @@ function BuilderPageContent() {
     if (!selectedJDId || !chatInput.trim() || !currentJD) return
     setIsRefining(true)
     try {
-      // Sync local UI edits to postgres before calling refine so backend has latest context
-      await fetchApi(`/jds/${currentJD.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ content: JSON.stringify(currentJD.content) })
-      })
-
       const updated = await fetchApi(`/jds/${selectedJDId}/refine`, {
         method: "POST",
-        body: JSON.stringify({ prompt: chatInput, tags: taggedSections })
+        body: JSON.stringify({ 
+          prompt: chatInput, 
+          tags: taggedSections,
+          content: JSON.stringify(currentJD.content)
+        })
       })
       if (typeof updated.content === "string") { try { updated.content = JSON.parse(updated.content) } catch {} }
       updateJD(updated); setChatInput(""); setTaggedSections([])
@@ -405,18 +426,82 @@ function BuilderPageContent() {
     } catch { toast.error("Refinement failed.") } finally { setIsRefining(false) }
   }
 
-  const handleEvaluate = async () => {
-    if (!currentJD) return
+  const handleEvaluate = async (targetJD?: any) => {
+    // 1. Resolve ID with multi-layer fallback
+    let id = targetJD?.id || currentJD?.id || urlJdId
+    if (!id && jds.length > 0) id = jds[0].id
+
+    if (!id || id === 'undefined') {
+       console.error("Assessment Failed: No valid JD ID found in state, URL, or fallback.");
+       toast.error("ID resolution failed. Please refresh.")
+       return
+    }
+
+    // 2. Resolve Content (ensure we use the improved one if available)
+    const activeJD = (targetJD && typeof targetJD === 'object' && targetJD.content) 
+                     ? targetJD 
+                     : (jds.find((j: any) => j.id === id) || currentJD)
+
+    if (!activeJD || !activeJD.content) {
+       console.error("Assessment Failed: No content found for JD", id);
+       return
+    }
+
     setIsEvaluating(true); setShowEvaluation(true)
     try {
-      const res = await fetchApi(`/jds/${currentJD.id}/score`, {
+      console.log(`Starting Quality Audit for JD: ${id}`)
+      const res = await fetchApi(`/jds/${id}/score`, {
         method: "POST", body: JSON.stringify({ 
-          transcript: cleanTranscript, 
-          jd: JSON.stringify(currentJD.content) 
+          transcript: "",  
+          jd: typeof activeJD.content === 'string' ? activeJD.content : JSON.stringify(activeJD.content) 
         })
       })
-      updateJD({ ...currentJD, quality_score: res.scores }); setCurrentReport(res.report)
-    } catch { toast.error("Evaluation failed."); setShowEvaluation(false) } finally { setIsEvaluating(false) }
+      
+      // Update state with new score while keeping the improved content
+      updateJD({ ...activeJD, quality_score: res.scores })
+      setCurrentReport(res.report)
+      toast.success("Assessment Complete")
+    } catch (err) { 
+      console.error("Evaluation API Error:", err)
+      toast.error("Evaluation failed.")
+      setShowEvaluation(false) 
+    } finally { 
+      setIsEvaluating(false) 
+    }
+  }
+
+  const handleAutoApply = async () => {
+    if (!currentJD || !currentReport) return
+    setIsRefining(true)
+    
+    // Extract actions/recommendations from report
+    const reportLines = currentReport.split('\n').filter(Boolean)
+    const recommendations = reportLines.filter(l => /add|includ|mention|emphasize|consider|improve|weak|miss|lack/i.test(l))
+    
+    if (recommendations.length === 0) {
+      toast.info("No specific improvements detected to auto-apply.")
+      setIsRefining(false)
+      return
+    }
+
+    try {
+      const updated = await fetchApi(`/jds/${currentJD.id}/auto-apply`, {
+        method: "POST",
+        body: JSON.stringify({ 
+          recommendations,
+          content: JSON.stringify(currentJD.content)
+        })
+      })
+      updateJD({ ...updated, quality_score: currentJD.quality_score })
+      toast.success("AI improvements applied!")
+      
+      // Automatically re-evaluate using the FRESHLY UPDATED content
+      setTimeout(() => handleEvaluate(updated), 200)
+    } catch {
+      toast.error("Auto-apply failed.")
+    } finally {
+      setIsRefining(false)
+    }
   }
 
   const handleMicClick = () => {
@@ -435,11 +520,36 @@ function BuilderPageContent() {
     updateJD({ ...currentJD, content: { ...currentJD.content, sections: { ...(currentJD.content?.sections || {}), [field]: value } } })
   }
 
-  const handleProceed = () => {
+  const handleDeleteSection = (title: string) => {
     if (!currentJD) return
-    localStorage.setItem(`jdforge_template_${currentJD.id}`, selectedTemplate)
-    localStorage.setItem(`jdforge_accent_${currentJD.id}`, accentColor)
-    markAsFinalized(currentJD.id); router.push(`/sourcing?jd_id=${currentJD.id}`)
+    const newSections = { ...currentJD.content.sections }
+    delete newSections[title]
+    updateJD({ ...currentJD, content: { ...currentJD.content, sections: newSections } })
+  }
+
+
+  const handleProceed = async () => {
+    if (!currentJD) return
+    setIsRefining(true)
+    try {
+      await fetchApi(`/jds/${currentJD.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "finalized",
+          content: JSON.stringify(currentJD.content),
+          template_used: selectedTemplate,
+          accent_color: accentColor
+        })
+      })
+      localStorage.removeItem(`jd_backup_${currentJD.id}`)
+      localStorage.removeItem(`jdforge_template_${currentJD.id}`)
+      localStorage.removeItem(`jdforge_accent_${currentJD.id}`)
+      router.push(`/sourcing?jd_id=${currentJD.id}`)
+    } catch {
+      toast.error("Failed to save and proceed.")
+    } finally {
+      setIsRefining(false)
+    }
   }
 
   const handleInvite = async () => {
@@ -464,10 +574,13 @@ function BuilderPageContent() {
     // Load template for target JD immediately (don't wait for effect)
     const saved = localStorage.getItem(`jdforge_template_${jdId}`) || 't1_classic'
     setSelectedTemplate(saved)
-    setSelectedJDId(jdId)           // ← direct state update — re-renders canvas immediately
+    setSelectedJDId(jdId)           
     setViewMode('edit')
     setShowEvaluation(false)
     setCollapsed({})
+    setCurrentReport("")
+    setIsRefining(false)
+    setIsEvaluating(false)
     // Also update URL for bookmarkability (shallow replace to avoid full navigation)
     router.replace(`/builder?jd_id=${jdId}`, { scroll: false })
   }
@@ -486,19 +599,16 @@ function BuilderPageContent() {
     if (currentJD?.id) localStorage.setItem(`jdforge_template_${currentJD.id}`, templateId)
   }
 
-  if (!isLoaded || !currentJD) return (
-    <AppShell><div className="flex items-center justify-center p-20"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div></AppShell>
-  )
+  if (!currentJD) return <AppShell><div className="p-20 text-slate-400">JD not found.</div></AppShell>
 
-  const rawSections = currentJD?.content?.sections || {}
-  const BASE_SECTIONS = ["Hiring Title","Job Summary","Experience","Location","Mode of Work","Key Responsibilities","Qualifications and Required Skills","Good to Have Skills","Soft Skills"]
-  const sections: Record<string, any> = {}
-  BASE_SECTIONS.forEach(k => sections[k] = rawSections[k] || "")
-  Object.keys(rawSections).forEach(k => { if (!BASE_SECTIONS.includes(k)) sections[k] = rawSections[k] })
+  const sections = currentJD?.content?.sections || {}
 
+
+
+  const totalSections = Object.keys(sections).length
   const filledCount = Object.values(sections).filter(v => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : String(v).trim()).length > 0).length
-  const pct = Math.round((filledCount / Object.keys(sections).length) * 100)
-  const words = Object.values(sections).reduce((a, v) => a + (typeof v === "string" ? v.replace(/<[^>]*>/g, "") : String(v)).trim().split(/\s+/).filter(Boolean).length, 0)
+  const pct = totalSections > 0 ? Math.round((filledCount / totalSections) * 100) : 0
+  const words = Object.values(sections).reduce((a: number, v: any) => a + (typeof v === "string" ? v.replace(/<[^>]*>/g, "") : String(v)).trim().split(/\s+/).filter(Boolean).length, 0)
 
   return (
     <AppShell>
@@ -522,17 +632,23 @@ function BuilderPageContent() {
                   {jds.map((jd: any) => {
                     const active = jd.id === selectedJDId
                     const done = jd.status === 'finalized'
-                    const storedTpl = typeof window !== 'undefined' ? localStorage.getItem(`jdforge_template_${jd.id}`) : null
+                    // Optimization: Get template from jd object or fallback to cache
+                    const templateName = jd.template_used || (typeof window !== 'undefined' ? localStorage.getItem(`jdforge_template_${jd.id}`) : null)
+                    
                     return (
                       <button key={jd.id} onClick={() => switchJD(jd.id)}
-                        className={`w-full group flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all ${active ? "bg-blue-600 shadow-lg shadow-blue-600/20" : done ? "hover:bg-emerald-50 bg-slate-50/50" : "hover:bg-slate-50"}`}>
+                        className={`w-full group flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors duration-200 ${active ? "bg-blue-600 shadow-lg shadow-blue-600/20" : done ? "hover:bg-emerald-50 bg-slate-50/50" : "hover:bg-slate-50"}`}>
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black ${active ? "bg-white/20 text-white" : done ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
                           {jd.title?.[0]?.toUpperCase() || '?'}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 flex flex-col justify-center h-8">
                           <span className={`text-[11px] font-bold truncate block ${active ? "text-white" : "text-slate-700"}`}>{jd.title}</span>
-                          {storedTpl && !active && (
-                            <span className="text-[8px] font-bold text-slate-400 truncate block">{storedTpl.replace(/_/g,' ')}</span>
+                          {templateName ? (
+                            <span className={`text-[8px] font-bold truncate block ${active ? "text-blue-100 opacity-80" : "text-slate-400"}`}>
+                              {templateName.replace(/t\d+_|tpl_/g, '').replace(/_/g, ' ')}
+                            </span>
+                          ) : (
+                            <span className="text-[8px] opacity-0 block h-3">--</span>
                           )}
                         </div>
                         {done
@@ -663,6 +779,7 @@ function BuilderPageContent() {
               accentColor={accentColor}
               onBack={() => setViewMode("edit")}
               onProceed={handleProceed}
+              currentContent={currentJD.content}
             />
           ) : (
             <>
@@ -681,119 +798,111 @@ function BuilderPageContent() {
                       <Pencil className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                   )}
-                  <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <span>{words} words</span>
-                    <div className="w-1 h-1 rounded-full bg-slate-200" />
-                    <span className="flex items-center gap-2">
-                      <div className="w-20 h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: pct >= 80 ? "#16a34a" : pct >= 50 ? "#d97706" : "#dc2626" }} />
-                      </div>
-                      {pct}% complete
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      <span>{words} words</span>
+                      <div className="w-1 h-1 rounded-full bg-slate-200" />
+                      <span className="flex items-center gap-2">
+                        <div className="w-20 h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: pct >= 80 ? "#16a34a" : pct >= 50 ? "#d97706" : "#dc2626" }} />
+                        </div>
+                        {pct}% complete
+                      </span>
+                    </div>
+                    
+                    <button 
+                      onClick={() => handleEvaluate()}
+                      disabled={isEvaluating}
+                      className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isEvaluating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {currentJD?.quality_score ? `Score: ${currentJD.quality_score.overall_score || 0}%` : 'Assess Quality'}
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Score Panel — Premium */}
               {showEvaluation && (() => {
                 const score = currentJD?.quality_score?.overall_score || 0
-                const scoreColor = score >= 80 ? '#16a34a' : score >= 60 ? '#d97706' : '#ef4444'
-                const r = 44, circ = 2 * Math.PI * r
+                const scoreColor = score >= 85 ? '#059669' : score >= 70 ? '#2563EB' : score >= 50 ? '#D97706' : '#DC2626'
+                const r = 42, circ = 2 * Math.PI * r
                 const dash = (Math.min(score, 100) / 100) * circ
                 const sectionScores = currentJD?.quality_score?.section_scores || {}
-                // Parse report into badges
                 const reportLines = (currentReport || '').split('\n').filter(Boolean)
-                const strengths = reportLines.filter(l => /strength|great|excel|good/i.test(l))
-                const warnings = reportLines.filter(l => /weak|miss|lack|low|improve/i.test(l))
-                const actions = reportLines.filter(l => /add|includ|mention|emphasize|consider/i.test(l))
+                const recommendations = reportLines.filter(l => l.includes('→')).map(l => l.replace(/^[→\s\-]*/, ''))
+                
                 return (
-                  <div className="border-b border-amber-100/60 bg-gradient-to-r from-amber-50/40 via-white to-blue-50/30 px-10 py-6 shrink-0">
-                    <div className="max-w-3xl mx-auto">
-                      <div className="flex items-center gap-2 mb-5">
-                        <Sparkles className="w-4 h-4 text-amber-500" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">AI Quality Assessment</h3>
-                        <div className="flex-1 h-px bg-amber-100" />
-                        {isEvaluating
-                          ? <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</div>
-                          : <button onClick={() => setShowEvaluation(false)} className="text-slate-300 hover:text-slate-500 transition-colors"><X className="w-3.5 h-3.5" /></button>
-                        }
+                  <div className="border-b border-slate-100 bg-white/50 backdrop-blur-md px-10 py-10 shrink-0 relative overflow-hidden">
+                    <div className="max-w-4xl mx-auto flex gap-12 items-center relative z-10">
+                      {/* Left: Big Score Unit */}
+                      <div className="flex flex-col items-center">
+                        <div className="relative w-32 h-32 group">
+                          <div className={`absolute inset-0 rounded-full blur-2xl opacity-10 transition-colors duration-1000`} style={{ background: scoreColor }} />
+                          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                            <circle cx="50" cy="50" r={r} fill="none" stroke="#f1f5f9" strokeWidth="6" />
+                            <circle cx="50" cy="50" r={r} fill="none" stroke={scoreColor} strokeWidth="6"
+                              strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+                              className="transition-all duration-1000 ease-out" />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-4xl font-black tracking-tighter" style={{ color: scoreColor }}>{score || '--'}</span>
+                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest -mt-1">Score</span>
+                          </div>
+                        </div>
+                        <div className={`mt-4 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg`} style={{ background: scoreColor }}>
+                          {score >= 85 ? 'Pristine' : score >= 70 ? 'Professional' : 'Needs Polish'}
+                        </div>
                       </div>
-                      {isEvaluating ? (
-                        <div className="flex items-center gap-4">
-                          <div className="w-24 h-24 rounded-full bg-slate-100 animate-pulse" />
-                          <div className="flex-1 space-y-2">
-                            {[80, 60, 70, 50, 90].map((w, i) => <div key={i} className="h-3 bg-slate-100 rounded-full animate-pulse" style={{ width: `${w}%` }} />)}
+
+                      {/* Middle: Detailed Section Analysis */}
+                      <div className="flex-1 grid grid-cols-2 gap-x-8 gap-y-4">
+                        {Object.entries(sectionScores).map(([k, v]: any) => (
+                          <div key={k} className="group">
+                            <div className="flex justify-between items-end mb-2">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">{k.replace(/_/g, ' ')}</span>
+                              <span className="text-xs font-black text-slate-900">{v}%</span>
+                            </div>
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-1000 ease-out" 
+                                style={{ width: `${v}%`, background: v >= 80 ? '#059669' : v >= 60 ? '#3B82F6' : '#EF4444' }} />
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex gap-6 items-start">
-                          {/* Radial gauge */}
-                          <div className="shrink-0 flex flex-col items-center">
-                            <div className="relative w-24 h-24">
-                              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                                <circle cx="50" cy="50" r={r} fill="none" stroke="#f1f5f9" strokeWidth="8" />
-                                <circle cx="50" cy="50" r={r} fill="none" stroke={scoreColor} strokeWidth="8"
-                                  strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-                                  style={{ transition: 'stroke-dasharray 1s cubic-bezier(0.4,0,0.2,1)' }} />
-                              </svg>
-                              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-2xl font-black" style={{ color: scoreColor }}>{score || '--'}</span>
-                                <span className="text-[9px] font-bold text-slate-400">/100</span>
+                        ))}
+                      </div>
+
+                      {/* Right: Smart Recommendations Card */}
+                      <div className="w-80 flex flex-col h-full self-stretch">
+                        <div className="flex-1 bg-slate-50 border border-slate-100 rounded-[24px] p-6 flex flex-col shadow-sm">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Smart Improvements</span>
+                          </div>
+                          <div className="flex-1 space-y-3 overflow-y-auto max-h-[140px] pr-2 custom-scrollbar">
+                            {recommendations.length > 0 ? recommendations.map((msg, i) => (
+                              <div key={i} className="flex gap-2 text-[11px] leading-relaxed text-slate-600 font-medium group/rec">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 group-hover/rec:scale-125 transition-transform" />
+                                {msg}
                               </div>
-                            </div>
-                            <span className="text-[8px] font-black uppercase tracking-widest mt-2" style={{ color: scoreColor }}>
-                              {score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Needs Work'}
-                            </span>
+                            )) : (
+                              <p className="text-[11px] text-slate-400 italic">No critical improvements needed. Your JD is looking sharp!</p>
+                            )}
                           </div>
-                          {/* Section bars */}
-                          {Object.keys(sectionScores).length > 0 && (
-                            <div className="flex-1 space-y-2">
-                              {Object.entries(sectionScores).map(([k, v]: any) => {
-                                const barColor = v >= 80 ? '#16a34a' : v >= 60 ? '#d97706' : '#ef4444'
-                                return (
-                                  <div key={k}>
-                                    <div className="flex justify-between text-[9px] font-bold mb-1">
-                                      <span className="text-slate-500 capitalize">{k.replace(/_/g, ' ')}</span>
-                                      <span style={{ color: barColor }}>{v}%</span>
-                                    </div>
-                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${v}%`, backgroundColor: barColor }} />
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                          {/* Report badges */}
-                          {currentReport && (
-                            <div className="w-56 shrink-0 space-y-2 max-h-36 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-                              {strengths.slice(0, 2).map((l, i) => (
-                                <div key={i} className="flex items-start gap-1.5 text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1.5">
-                                  <span className="font-black shrink-0">✓</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '')}</span>
-                                </div>
-                              ))}
-                              {warnings.slice(0, 2).map((l, i) => (
-                                <div key={i} className="flex items-start gap-1.5 text-[9px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
-                                  <span className="font-black shrink-0">⚠</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '')}</span>
-                                </div>
-                              ))}
-                              {actions.slice(0, 2).map((l, i) => (
-                                <div key={i} className="flex items-start gap-1.5 text-[9px] text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-2 py-1.5">
-                                  <span className="font-black shrink-0">→</span><span className="leading-snug">{l.replace(/^[•\-\*✓⚠→]\s*/, '')}</span>
-                                </div>
-                              ))}
-                              {strengths.length === 0 && warnings.length === 0 && (
-                                <p className="text-[9px] text-slate-500 leading-relaxed italic">{currentReport.slice(0, 200)}</p>
-                              )}
-                            </div>
-                          )}
+                          <button onClick={handleAutoApply} disabled={isRefining}
+                            className="mt-6 w-full flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-slate-900/10 active:scale-95 disabled:opacity-50">
+                            {isRefining ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-blue-400" />}
+                            Apply All Fixes
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
+                    
+                    {/* Floating close button */}
+                    <button onClick={() => setShowEvaluation(false)} className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-all">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 )
               })()}
-
               {/* Document canvas */}
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="max-w-3xl mx-auto px-10 py-10 space-y-8 pb-40">
@@ -802,13 +911,22 @@ function BuilderPageContent() {
                     const text = typeof content === "string" ? content : ""
                     const empty = !text.replace(/<[^>]*>/g, "").trim()
                     return (
-                      <div key={idx} className={`group ${taggedSections.includes(title) ? "ring-2 ring-blue-400 bg-blue-50/50 rounded-2xl p-4 -mx-4 transition-all" : "transition-all p-4 -mx-4 border border-transparent"}`}>
+                      <div key={`${selectedJDId}-${idx}`} className={`group ${taggedSections.includes(title) ? "ring-2 ring-blue-400 bg-blue-50/50 rounded-2xl p-4 -mx-4 transition-all" : "transition-all p-4 -mx-4 border border-transparent"}`}>
                         <div className="flex items-center gap-3 mb-3 cursor-pointer select-none" onClick={() => setCollapsed(p => ({ ...p, [id]: !p[id] }))}>
                           <ChevronDown className={`w-3.5 h-3.5 text-blue-400 transition-transform ${collapsed[id] ? "-rotate-90" : ""}`} />
                           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{title}</h3>
                           <div className={`flex-1 h-0.5 rounded-full transition-colors ${taggedSections.includes(title) ? 'bg-blue-200' : 'bg-slate-50 group-hover:bg-slate-100'}`} />
                           {empty && <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">AI Fill</span>}
+                          
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSection(title); }}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete Section"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
+
                         {!collapsed[id] && (
                           <div
                             className={`min-h-[32px] text-base leading-relaxed text-slate-700 outline-none focus:outline-none px-1 rounded-lg transition-all focus-within:ring-2 focus-within:ring-blue-100 ${taggedSections.includes(title) ? 'font-medium' : ''} empty:before:content-['Type_or_use_AI...'] empty:before:text-slate-300`}
@@ -837,9 +955,10 @@ function BuilderPageContent() {
           {/* Formatting — Bold + Underline only; Color = Template Accent */}
           <div className="px-5 pt-7 pb-5 border-b border-slate-100 shrink-0">
             <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400 mb-5">Formatting</p>
-            <div className="grid grid-cols-2 gap-1.5 mb-5">
+            <div className="grid grid-cols-3 gap-1.5 mb-5">
               {[
                 { icon: Bold, cmd: "bold", label: "Bold" },
+                { icon: Italic, cmd: "italic", label: "Italic" },
                 { icon: Underline, cmd: "underline", label: "Underline" },
               ].map(t => (
                 <button key={t.cmd} onMouseDown={e => execFormat(e, t.cmd)}

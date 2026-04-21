@@ -1,117 +1,55 @@
-\documentclass[a4paper,10pt]{article}
+\documentclass[10pt,a4paper]{article}
 
-\usepackage[margin=0cm]{geometry}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{graphicx}
 \usepackage{xcolor}
-\usepackage{tikz}
+\usepackage[normalem]{ulem}
+\usepackage{titlesec}
 \usepackage{enumitem}
-\usepackage{mathptmx}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
 
-\pagestyle{empty}
+\definecolor{primary}{RGB}{0,102,153}
+\definecolor{textgray}{RGB}{80,80,80}
 
-\definecolor{sidebar}{RGB}{198,205,214}
-\definecolor{titleblue}{RGB}{42,92,138}
-\definecolor{textcolor}{RGB}{50,50,50}
+\titleformat{\section}{\large\bfseries\color{primary}}{}{0em}{}
+\setlist[itemize]{noitemsep, topsep=1pt, leftmargin=1.2em}
+\setlength{\parindent}{0pt}
 
 \begin{document}
 
-\begin{tikzpicture}[remember picture,overlay]
+\begin{flushright}
+\includegraphics[width=4cm]{image.jpg}
+\end{flushright}
 
-\fill[sidebar] (current page.north west) rectangle ([xshift=5cm]current page.south west);
+{\Huge\bfseries\color{primary} << hiring_title >>}
 
-\node[anchor=north west, xshift=0.8cm, yshift=-1.2cm] at (current page.north west)
-{
-\begin{minipage}[t]{4cm}
+\vspace{4pt}
+\hrule
+\vspace{6pt}
 
-\vspace{0.3cm}
-{\large \textbf{\color{titleblue}Wissen}}\\
-{\small \color{titleblue}Technology}
+{\color{textgray}
+<% for meta in metadata %>
+\textbf{<< meta.label >>:} << meta.value >> <% if not loop.last %> \quad\textbullet\quad <% endif %>
+<% endfor %>
+}
 
-\vspace{1.5cm}
+\vspace{8pt}
+\hrule
+\vspace{10pt}
 
-\textbf{Location}\\
-{ << location >> }
 
-\vspace{0.7cm}
-\textbf{Job Type}\\
-{ << job_type >> }
-
-\vspace{0.7cm}
-\textbf{Experience}\\
-{ << experience >> }
-
-\vspace{0.7cm}
-\textbf{Mode}\\
-{ << mode_of_work >> }
-
-\end{minipage}
-};
-
-\node[anchor=north west, xshift=5.6cm, yshift=-1.2cm] at (current page.north west)
-{
-\begin{minipage}[t]{12.8cm}
-
-{\Large \color{titleblue} << hiring_title >>}
-
-\vspace{0.3cm}
-\color{titleblue}\rule{\linewidth}{0.6pt}
-
-\vspace{0.6cm}
-\color{textcolor}
-
-{\large \color{titleblue} About Wissen Technology}
-
-\vspace{0.2cm}
-<< about_wissen >>
-
-\vspace{0.6cm}
-{\large \color{titleblue} Job Summary}
-
-\vspace{0.2cm}
-<< job_summary >>
-
-<% if responsibilities %>
-\vspace{0.6cm}
-{\large \color{titleblue} Key Responsibilities}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt]
-<< responsibilities >>
-\end{itemize}
-<% endif %>
-
-<% if qualifications %>
-\vspace{0.5cm}
-{\large \color{titleblue} Qualifications \& Required Skills}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt]
-<< qualifications >>
-\end{itemize}
-<% endif %>
-
-<% if good_to_have %>
-\vspace{0.5cm}
-{\large \color{titleblue} Good to Have Skills}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt]
-<< good_to_have >>
-\end{itemize}
-<% endif %>
-
-<% if soft_skills %>
-\vspace{0.5cm}
-{\large \color{titleblue} Soft Skills}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt]
-<< soft_skills >>
-\end{itemize}
-<% endif %>
-
-\vspace{0.8cm}
-\color{titleblue}
-India \quad --- \quad USA \quad --- \quad UK \quad --- \quad Australia \quad --- \quad Canada
-
-\end{minipage}
-};
-
-\end{tikzpicture}
+<% for section in body_sections %>
+\section*{<< section.title >>}
+{\color{textgray}
+  <% if section.is_list %>
+    \begin{itemize}
+    << section.content >>
+    \end{itemize}
+  <% else %>
+    << section.content >>
+  <% endif %>
+}
+<% endfor %>
 
 \end{document}

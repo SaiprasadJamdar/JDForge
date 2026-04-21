@@ -1,103 +1,59 @@
-\documentclass[a4paper,10pt]{article}
+\documentclass[11pt,a4paper]{article}
 
-\usepackage[top=1.5cm, bottom=1.5cm, left=1.5cm, right=1.5cm]{geometry}
+\usepackage[margin=0.6in]{geometry}
+\usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{titlesec}
 \usepackage{enumitem}
-\usepackage{mathptmx}
-\usepackage{multicol}
-\usepackage{parskip}
-\usepackage{tikz}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
 
-\pagestyle{empty}
+\definecolor{primary}{RGB}{0,102,153}
+\definecolor{textgray}{RGB}{60,60,60}
 
-\definecolor{headerBg}{RGB}{15,23,42}
-\definecolor{accent}{RGB}{59,130,246}
-\definecolor{subtle}{RGB}{148,163,184}
-\definecolor{bodytext}{RGB}{30,41,59}
+\titleformat{\section}{\Large\bfseries\color{primary}}{}{0em}{}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+\setlist[itemize]{noitemsep, topsep=2pt, leftmargin=1.3em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
 
 \begin{document}
 
-\begin{tikzpicture}[remember picture,overlay]
-\fill[headerBg] (current page.north west) rectangle ([yshift=-3.5cm]current page.north east);
-\end{tikzpicture}
+\begin{center}
+\includegraphics[width=4.5cm]{image.jpg}
+\vspace{10pt}
 
-\vspace{-0.8cm}
-
-\begin{minipage}[t]{\linewidth}
-\color{white}
-{\huge \textbf{<< hiring_title >>}}
-
-\vspace{6pt}
-{\small \color{subtle} \textbf{<< location >>} \quad|\quad \textbf{<< experience >>} \quad|\quad \textbf{<< mode_of_work >>}}
+{\Huge\bfseries\color{primary} << hiring_title >>}
+\end{center}
 
 \vspace{8pt}
-\color{accent}\rule{\linewidth}{1.5pt}
-\end{minipage}
+\hrule height 1pt
+\vspace{8pt}
 
-\vspace{1cm}
-\color{bodytext}
-
-\begin{multicols}{2}
-
-\textbf{\large \color{headerBg} About Wissen}
-
-\vspace{4pt}
-\small << about_wissen >>
+{\color{textgray}
+\centering
+<% for meta in metadata %>
+\textbf{<< meta.label >>:} << meta.value >> <% if not loop.last %> \quad\textbullet\quad <% endif %>
+<% endfor %>
+}
 
 \vspace{10pt}
-\textbf{\large \color{headerBg} Job Summary}
+\hrule
+\vspace{15pt}
 
-\vspace{4pt}
-\small << job_summary >>
 
-<% if good_to_have %>
-\vspace{10pt}
-\textbf{\large \color{headerBg} Good to Have}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt, topsep=2pt]
-\small
-<< good_to_have >>
-\end{itemize}
-<% endif %>
-
-<% if soft_skills %>
-\vspace{10pt}
-\textbf{\large \color{headerBg} Soft Skills}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt, topsep=2pt]
-\small
-<< soft_skills >>
-\end{itemize}
-<% endif %>
-
-\columnbreak
-
-<% if responsibilities %>
-\textbf{\large \color{headerBg} Key Responsibilities}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt, topsep=2pt]
-\small
-<< responsibilities >>
-\end{itemize}
-<% endif %>
-
-<% if qualifications %>
-\vspace{10pt}
-\textbf{\large \color{headerBg} Required Skills}
-
-\begin{itemize}[leftmargin=1em, itemsep=2pt, topsep=2pt]
-\small
-<< qualifications >>
-\end{itemize}
-<% endif %>
-
-\end{multicols}
-
-\vspace{0.5cm}
-{\color{accent}\hrule}
-\vspace{4pt}
-\begin{center}
-{\small \color{subtle} \textbf{India --- USA --- UK --- Australia --- Canada}}
-\end{center}
+<% for section in body_sections %>
+\section*{<< section.title >>}
+{\color{textgray}
+  <% if section.is_list %>
+    \begin{itemize}
+    << section.content >>
+    \end{itemize}
+  <% else %>
+    << section.content >>
+  <% endif %>
+}
+<% endfor %>
 
 \end{document}

@@ -3,8 +3,10 @@
 \usepackage[margin=0.7in]{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage[normalem]{ulem}
 \usepackage{titlesec}
 \usepackage{tcolorbox}
+\tcbuselibrary{breakable}
 \usepackage{enumitem}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
@@ -12,7 +14,7 @@
 \definecolor{primary}{RGB}{0,102,153}
 \definecolor{textgray}{RGB}{80,80,80}
 
-\tcbset{colframe=primary,arc=4pt,boxrule=0.8pt,left=6pt,right=6pt,top=6pt,bottom=6pt}
+\tcbset{colframe=primary,arc=4pt,boxrule=0.8pt,left=6pt,right=6pt,top=6pt,bottom=6pt,breakable}
 \titleformat{\section}{\large\bfseries\color{primary}}{}{0em}{}
 \setlist[itemize]{noitemsep, topsep=1pt, leftmargin=1.2em}
 \setlength{\parindent}{0pt}
@@ -21,78 +23,39 @@
 
 \begin{center}
 \includegraphics[width=4cm]{image.jpg}
-\vspace{6pt}
+\vspace{2pt}
 
 {\Huge\bfseries\color{primary} << hiring_title >>}
 \end{center}
 
-\vspace{6pt}
+\vspace{2pt}
 
+<% if metadata %>
 \begin{tcolorbox}
-\textbf{Location:} << location >> \quad
-\textbf{Experience:} << experience >> \quad
-\textbf{Mode:} << mode_of_work >>
-\end{tcolorbox}
-
-\vspace{4pt}
-
-\begin{tcolorbox}
-\section*{About Wissen Technology}
-{\color{textgray} << about_wissen >> }
-\end{tcolorbox}
-
-\begin{tcolorbox}
-\section*{Job Summary}
-{\color{textgray} << job_summary >> }
-\end{tcolorbox}
-
-<% if responsibilities %>
-\begin{tcolorbox}
-\section*{Key Responsibilities}
-{\color{textgray}
-\begin{itemize}
-<< responsibilities >>
-\end{itemize}
-}
+\centering
+<% for meta in metadata %>
+\textbf{<< meta.label >>:} << meta.value >> <% if not loop.last %> \quad\textbullet\quad <% endif %>
+<% endfor %>
 \end{tcolorbox}
 <% endif %>
 
-<% if qualifications %>
-\begin{tcolorbox}
-\section*{Qualifications and Required Skills}
-{\color{textgray}
-\begin{itemize}
-<< qualifications >>
-\end{itemize}
-}
-\end{tcolorbox}
-<% endif %>
+\vspace{2pt}
 
-<% if good_to_have %>
-\begin{tcolorbox}
-\section*{Good to Have Skills}
-{\color{textgray}
-\begin{itemize}
-<< good_to_have >>
-\end{itemize}
-}
-\end{tcolorbox}
-<% endif %>
+\begin{tcolorbox}[colback=white,breakable]
 
-<% if soft_skills %>
-\begin{tcolorbox}
-\section*{Soft Skills}
+<% for section in body_sections %>
+\section*{<< section.title >>}
 {\color{textgray}
-\begin{itemize}
-<< soft_skills >>
-\end{itemize}
+  <% if section.is_list %>
+    \begin{itemize}
+    << section.content >>
+    \end{itemize}
+  <% else %>
+    << section.content >>
+  <% endif %>
 }
-\end{tcolorbox}
-<% endif %>
+<% endfor %>
 
-\begin{tcolorbox}
-\section*{Wissen Sites}
-{\color{textgray} India \quad | \quad USA \quad | \quad UK \quad | \quad Germany }
 \end{tcolorbox}
 
 \end{document}

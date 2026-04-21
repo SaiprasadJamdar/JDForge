@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.dependencies import get_current_user
 from backend.core.security import decrypt_key
+from backend.modules.auth.model import User
 from backend.modules.jd.schema import (
     GenerateJDRequest,
     GenerateJDResponse,
@@ -14,6 +15,7 @@ from backend.modules.jd.schema import (
     JDUpdate,
     ScoreJDRequest,
     ScoreJDResponse,
+    PDFExportBody,
     RefineJDRequest,
     InviteUserRequest,
     CollaboratorOut,
@@ -31,9 +33,12 @@ from backend.modules.jd.service import (
     invite_user_to_jd,
     list_collaborators,
     create_jd_manually,
+    suggest_clarifications,
+    apply_score_recommendations,
 )
+
 from backend.modules.transcripts.service import get_transcript
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/jds", tags=["Job Descriptions"])
@@ -98,7 +103,15 @@ def patch(
     jd = get_jd(db, jd_id, current_user.id)
     if not jd:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
-    return update_jd(db, jd, payload.content, payload.status, payload.title)
+    return update_jd(
+        db, 
+        jd, 
+        content=payload.content, 
+        status=payload.status, 
+        title=payload.title,
+        template_used=payload.template_used,
+        accent_color=payload.accent_color
+    )
 
 @router.delete("/{jd_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove(
@@ -126,7 +139,13 @@ def refine(
     jd = get_jd(db, jd_id, current_user.id)
     if not jd:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
-    return refine_jd_sections(db, jd, payload.tags, payload.prompt)
+
+    # If content was provided from UI, update local object (to refine the newest state)
+    if payload.content:
+        jd.content = payload.content
+        
+    api_key = decrypt_key(current_user.groq_api_key)
+    return refine_jd_sections(db, jd, payload.tags, payload.prompt, api_key=api_key, user_id=current_user.id)
 
 @router.post("/{jd_id}/score", response_model=ScoreJDResponse)
 def score(
@@ -144,9 +163,49 @@ def score(
     
     # Decrypt Key for Scoring
     api_key = decrypt_key(current_user.groq_api_key)
-    result = score_jd_quality(payload.transcript, jd_to_score, api_key=api_key)
+    result = score_jd_quality(payload.transcript, jd_to_score, api_key=api_key, db=db, user_id=current_user.id)
     save_quality_score(db, jd, result["scores"])
     return ScoreJDResponse(**result)
+
+class AutoApplyRequest(BaseModel):
+    recommendations: list[str]
+    content: Optional[str] = None
+
+@router.post("/{jd_id}/auto-apply", response_model=JDOut)
+def auto_apply(
+    jd_id: UUID,
+    payload: AutoApplyRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    jd = get_jd(db, jd_id, current_user.id)
+    if not jd:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
+    
+    # Use client content if provided (to preserve unsaved edits)
+    if payload.content:
+        target_content = payload.content
+    else:
+        target_content = jd.content
+
+    try:
+        jd_json = json.loads(target_content)
+    except:
+        raise HTTPException(400, "JD content is not valid JSON")
+
+    api_key = decrypt_key(current_user.groq_api_key)
+    refined_json = apply_score_recommendations(
+        jd_json, 
+        payload.recommendations, 
+        api_key=api_key, 
+        db=db, 
+        user_id=current_user.id
+    )
+    
+    jd.content = json.dumps(refined_json)
+    db.commit()
+    db.refresh(jd)
+    return jd
 
 @router.post("/{jd_id}/invite", status_code=status.HTTP_201_CREATED)
 def invite(
@@ -179,7 +238,7 @@ def get_search_queries(
     
     # Decrypt Groq key for generation if needed
     api_key = decrypt_key(current_user.groq_api_key)
-    return generate_boolean_queries(db, jd, api_key)
+    return generate_boolean_queries(db, jd, api_key=api_key, user_id=current_user.id)
 
 @router.get("/{jd_id}/collaborators", response_model=list[CollaboratorOut])
 def collaborators(
@@ -191,6 +250,70 @@ def collaborators(
     if not jd:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
     return list_collaborators(db, jd_id)
+
+
+def _handle_pdf_export(jd_title: str, content_raw: Any, template_id: str, accent_color: str, preview: bool, current_user, db: Session):
+    # Parse content
+    content = content_raw
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except Exception:
+            content = {"sections": {}}
+
+    # Decrypt user API key for AI section fill
+    api_key: Optional[str] = None
+    if current_user.groq_api_key:
+        try:
+            api_key = decrypt_key(current_user.groq_api_key)
+        except Exception:
+            pass
+
+    try:
+        from backend.modules.jd.pdf_service import compile_pdf
+        pdf_bytes = compile_pdf(
+            content,
+            template_id=template_id,
+            api_key=api_key,
+            accent_color=accent_color,
+            db=db,
+            user_id=current_user.id
+        )
+    except RuntimeError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
+    except Exception as e:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"PDF generation failed: {e}")
+
+    safe_title = jd_title.replace(" ", "_")[:50]
+    disposition = "inline" if preview else f'attachment; filename="{safe_title}.pdf"'
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": disposition},
+    )
+
+
+@router.post("/{jd_id}/export/pdf")
+def export_pdf_post(
+    jd_id: UUID,
+    payload: PDFExportBody,
+    template_id: str = "wissen_classic",
+    preview: bool = False,
+    accent_color: str = "",
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Compile the JD into a branded PDF using a LaTeX template.
+    Accepts content in the body for previewing unsaved changes.
+    """
+    jd = get_jd(db, jd_id, current_user.id)
+    if not jd:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
+    
+    # Use content from payload if provided
+    content_to_use = payload.content if payload.content else jd.content
+    return _handle_pdf_export(jd.title, content_to_use, template_id, accent_color, preview, current_user, db)
 
 
 @router.get("/{jd_id}/export/pdf")
@@ -213,40 +336,20 @@ def export_pdf(
     if not jd:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "JD not found")
 
-    # Parse content
-    content = jd.content
-    if isinstance(content, str):
-        try:
-            content = json.loads(content)
-        except Exception:
-            content = {"sections": {}}
+    return _handle_pdf_export(jd.title, jd.content, template_id, accent_color, preview, current_user, db)
 
-    # Decrypt user API key for AI section fill
-    api_key: Optional[str] = None
-    if current_user.groq_api_key:
-        try:
-            api_key = decrypt_key(current_user.groq_api_key)
-        except Exception:
-            pass
+@router.post("/clarify")
+def clarify(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    text = payload.get("text", "")
+    template = payload.get("template")
+    userobj = db.query(User).filter(User.id == current_user.id).first()
+    groq_key = decrypt_key(userobj.groq_api_key) if userobj else None
+    
+    questions = suggest_clarifications(text, template, api_key=groq_key, db=db, user_id=current_user.id)
+    return {"questions": questions}
 
-    try:
-        from backend.modules.jd.pdf_service import compile_pdf
-        pdf_bytes = compile_pdf(
-            content,
-            template_id=template_id,
-            api_key=api_key,
-            accent_color=accent_color,
-        )
-    except RuntimeError as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
-    except Exception as e:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"PDF generation failed: {e}")
-
-    safe_title = jd.title.replace(" ", "_")[:50]
-    disposition = "inline" if preview else f'attachment; filename="{safe_title}.pdf"'
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": disposition},
-    )
 

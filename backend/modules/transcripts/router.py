@@ -60,7 +60,8 @@ def upload_transcript(
                 shutil.copy(file_path, safe_audio_path)
                 target_path = safe_audio_path
 
-        transcript_text = transcribe_audio_file(target_path, current_user.groq_api_key)
+        api_key = decrypt_key(current_user.groq_api_key)
+        transcript_text = transcribe_audio_file(target_path, api_key)
 
         payload = TranscriptCreate(
             raw_text=transcript_text,
@@ -85,8 +86,8 @@ def ingest_transcript(
     current_user=Depends(get_current_user),
 ):
     """Accept a raw transcript (text paste or filename reference) and persist it."""
-    t = create_transcript(db, current_user.id, payload)
-    clean_transcript(db, t, current_user.groq_api_key)
+    api_key = decrypt_key(current_user.groq_api_key)
+    clean_transcript(db, t, api_key)
     return t
 
 
@@ -100,7 +101,8 @@ def clean(
     t = get_transcript(db, transcript_id, current_user.id)
     if not t:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Transcript not found")
-    cleaned = clean_transcript(db, t, current_user.groq_api_key)
+    api_key = decrypt_key(current_user.groq_api_key)
+    cleaned = clean_transcript(db, t, api_key)
     return CleanTranscriptResponse(transcript_id=cleaned.id, clean_text=cleaned.clean_text)
 
 

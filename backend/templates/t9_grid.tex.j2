@@ -3,6 +3,7 @@
 \usepackage[margin=0.6in]{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage[normalem]{ulem}
 \usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{tabularx}
@@ -27,9 +28,9 @@
 \vspace{6pt}
 
 {\color{textgray}
-\textbf{Location:} << location >> \\
-\textbf{Experience:} << experience >> \\
-\textbf{Mode of Work:} << mode_of_work >>
+<% for meta in metadata %>
+\textbf{<< meta.label >>:} << meta.value >> \\
+<% endfor %>
 }
 \end{minipage}
 &
@@ -43,65 +44,18 @@
 \hrule height 0.8pt
 \vspace{10pt}
 
-\section*{About Wissen Technology}
-{\color{textgray} << about_wissen >> }
 
-\vspace{10pt}
-
-\begin{tabularx}{\textwidth}{@{}p{0.52\textwidth} p{0.44\textwidth}@{}}
-
-\begin{minipage}[t]{\linewidth}
-
-\section*{Job Summary}
-{\color{textgray} << job_summary >> }
-
-<% if responsibilities %>
-\section*{Key Responsibilities}
+<% for section in body_sections %>
+\section*{<< section.title >>}
 {\color{textgray}
-\begin{itemize}
-<< responsibilities >>
-\end{itemize}
+  <% if section.is_list %>
+    \begin{itemize}
+    << section.content >>
+    \end{itemize}
+  <% else %>
+    << section.content >>
+  <% endif %>
 }
-<% endif %>
-
-\end{minipage}
-
-&
-
-\begin{minipage}[t]{\linewidth}
-
-<% if qualifications %>
-\section*{Qualifications and Required Skills}
-{\color{textgray}
-\begin{itemize}
-<< qualifications >>
-\end{itemize}
-}
-<% endif %>
-
-<% if good_to_have %>
-\section*{Good to Have Skills}
-{\color{textgray}
-\begin{itemize}
-<< good_to_have >>
-\end{itemize}
-}
-<% endif %>
-
-<% if soft_skills %>
-\section*{Soft Skills}
-{\color{textgray}
-\begin{itemize}
-<< soft_skills >>
-\end{itemize}
-}
-<% endif %>
-
-\section*{Wissen Sites}
-{\color{textgray} India \quad --- \quad USA \quad --- \quad UK \quad --- \quad Germany }
-
-\end{minipage}
-
-\end{tabularx}
+<% endfor %>
 
 \end{document}

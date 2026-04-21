@@ -9,7 +9,7 @@ from backend.config import get_settings
 from backend.core.email_service import send_otp_email
 from backend.database import get_db
 from backend.dependencies import create_access_token, get_current_user
-from backend.modules.auth.model import User
+from backend.modules.auth.model import User, TokenLog
 from backend.modules.auth.otp_model import OTPRecord
 from backend.modules.auth.schema import (
     ForgotPasswordRequest, PasswordResetRequest, VerifyOTPRequest,
@@ -61,6 +61,13 @@ def update_keys(payload: UserKeysUpdate, db: Session = Depends(get_db), current_
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.get("/logs")
+def get_logs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Retrieve token usage history for the current user."""
+    logs = db.query(TokenLog).filter(TokenLog.user_id == current_user.id).order_by(TokenLog.created_at.desc()).limit(100).all()
+    return logs
 
 
 # ─── Forgot Password / OTP Flow ───────────────────────────────────────────────

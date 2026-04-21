@@ -11,9 +11,15 @@ class GenerateJDRequest(BaseModel):
     transcript: Optional[str] = None
 
 
+class PDFExportBody(BaseModel):
+    content: Optional[str] = None
+
+
+
 class RefineJDRequest(BaseModel):
     tags: List[str]
     prompt: str
+    content: Optional[str] = None
 
 
 class JDOut(BaseModel):
@@ -36,6 +42,9 @@ class JDUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     status: Optional[str] = None
+    template_used: Optional[str] = None
+    accent_color: Optional[str] = None
+
 
 
 class JDListItem(BaseModel):

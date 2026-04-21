@@ -13,10 +13,17 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional
 
-from groq import Groq
 from jinja2 import Environment, FileSystemLoader
+from backend.core.groq_client import LLAMA_MODEL, get_groq_client, _llm, _llm_json
+from backend.modules.auth.model import TokenLog
+from sqlalchemy.orm import Session
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
+
+# Global cache to ensure deterministic mapping for a specific JD structure
+# This prevents headers from jumping around when switching templates.
+_MAPPING_CACHE = {}
 
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 
@@ -26,7 +33,7 @@ TEMPLATE_CATALOG = {
     "t1_classic":  {"file": "t1_classic.tex.j2",  "name": "Classic"},
     "t2_boxed":    {"file": "t2_boxed.tex.j2",    "name": "Boxed"},
     "t3_sidebar":  {"file": "t3_sidebar.tex.j2",  "name": "Sidebar"},
-    "t4_logoleft": {"file": "t4_logoleft.tex.j2", "name": "Logo Left"},
+    "t4_logoright": {"file": "t4_logoright.tex.j2", "name": "Logo Right"},
     "t5_twocol":   {"file": "t5_twocol.tex.j2",   "name": "Two Column"},
     "t6_accent":   {"file": "t6_accent.tex.j2",   "name": "Accent"},
     "t7_compact":  {"file": "t7_compact.tex.j2",  "name": "Compact"},
@@ -40,7 +47,12 @@ REQUIRED_SECTIONS = [
     "Job Summary",
     "Key Responsibilities",
     "Qualifications and Required Skills",
+    "Good to Have Skills",
+    "Soft Skills",
+    "About Wissen Technology",
+    "Wissen Sites"
 ]
+
 
 
 # ─── Color Extraction ─────────────────────────────────────────────────────────
@@ -63,6 +75,7 @@ def _extract_hex_color(style: str) -> Optional[str]:
 
 def _escape_raw(text: str) -> str:
     """Escape LaTeX special characters in a plain text segment."""
+    if not text: return ""
     # Order matters — backslash must be first
     subs = [
         ('\\', r'\textbackslash{}'),
@@ -75,12 +88,12 @@ def _escape_raw(text: str) -> str:
         ('}',  r'\}'),
         ('~',  r'\textasciitilde{}'),
         ('^',  r'\textasciicircum{}'),
+        ('\xa0', '~'), # Non-breaking space
         ('<',  r'\textless{}'),
         ('>',  r'\textgreater{}'),
         ('–',  '--'),
         ('—',  '---'),
         ('"',  "''"),
-        ('"',  '``'),
     ]
     for char, repl in subs:
         text = text.replace(char, repl)
@@ -107,15 +120,15 @@ class _LaTeXBuilder(HTMLParser):
         closers: list[str] = []
 
         if tag in ('b', 'strong'):
-            self.parts.append(r'\textbf{')
+            self.parts.append(r'{\bfseries ')
             closers.append('}')
 
         elif tag in ('i', 'em'):
-            self.parts.append(r'\textit{')
+            self.parts.append(r'{\itshape ')
             closers.append('}')
 
         elif tag == 'u':
-            self.parts.append(r'\underline{')
+            self.parts.append(r'\uline{')
             closers.append('}')
 
         elif tag == 's':
@@ -125,21 +138,22 @@ class _LaTeXBuilder(HTMLParser):
         elif tag == 'span':
             # Collect transformations from inline style
             color = _extract_hex_color(style)
-            is_bold = 'bold' in style and 'font-weight' in style
-            is_italic = 'italic' in style and 'font-style' in style
+            # More robust check for bold/italic - browsers often use numeric weights
+            is_bold = 'font-weight' in style and any(x in style for x in ['bold', '700', '800', '900'])
+            is_italic = 'font-style' in style and any(x in style for x in ['italic', 'oblique'])
             is_underline = 'underline' in style and 'text-decoration' in style
 
             if is_bold:
-                self.parts.append(r'\textbf{')
+                self.parts.append(r'{\bfseries ')
                 closers.append('}')
             if is_italic:
-                self.parts.append(r'\textit{')
+                self.parts.append(r'{\itshape ')
                 closers.append('}')
             if is_underline:
-                self.parts.append(r'\underline{')
+                self.parts.append(r'\uline{')
                 closers.append('}')
             if color:
-                self.parts.append(rf'\textcolor[HTML]{{{color}}}{{')
+                self.parts.append(rf'{{\color[HTML]{{{color}}} ')
                 closers.append('}')
 
         elif tag == 'font':
@@ -152,7 +166,7 @@ class _LaTeXBuilder(HTMLParser):
             else:
                 color = _extract_hex_color(f'color:{color_attr}') or ''
             if color:
-                self.parts.append(rf'\textcolor[HTML]{{{color}}}{{')
+                self.parts.append(rf'{{\color[HTML]{{{color}}} ')
                 closers.append('}')
 
         elif tag == 'br':
@@ -183,6 +197,11 @@ class _LaTeXBuilder(HTMLParser):
         self.parts.append(_escape_raw(data))
 
     def get_result(self) -> str:
+        """Close any unclosed tags remaining on the stack and return result."""
+        while self.stack:
+            _, closers = self.stack.pop()
+            for c in reversed(closers):
+                self.parts.append(c)
         return ''.join(self.parts).strip()
 
 
@@ -217,58 +236,33 @@ def _escape_latex(text: str) -> str:
 def _bullets_to_items(html: str) -> str:
     """Convert HTML/plain bullet content to LaTeX \\item lines.
     
-    Preserves bold, italic, color formatting within each bullet item
-    by splitting on structural tags first, then running _html_to_latex
-    per item so inline styles survive.
+    Preserves bold, italic, color formatting within each bullet item.
+    Handles tags spanning multiple lines by processing as a whole.
     """
     if not html:
         return ''
 
-    # 1. Split on <li> tags first (handles UL/OL from contentEditable)
-    if re.search(r'<li', html, re.IGNORECASE):
-        # Extract each <li>...</li> and convert its inner HTML
-        items = re.findall(r'<li[^>]*>(.*?)</li>', html, re.IGNORECASE | re.DOTALL)
-        lines = []
-        for item in items:
-            converted = _html_to_latex(item.strip())
-            if converted:
-                lines.append(rf'\item {converted}')
-        if lines:
-            return '\n'.join(lines)
+    # 1. If it's already HTML list items, we can still process it as a whole
+    # But if there are no LI tags, we'll try to convert plain bullets to LI first
+    # to ensure each one gets an \item.
+    # 1. If it's already HTML list items, we process as-is
+    if re.search(r'<(ul|ol|li)', html, re.IGNORECASE):
+        return _html_to_latex(html)
 
-    # 2. Plain-text bullet splitting (• - *) — still preserve formatting per chunk
-    # Split on structural block breaks first, keep inline HTML
-    text_plain = _strip_html(html)  # for bullet detection only
-    html_chunks: list[str] = []
+    # 2. Convert • - * markers to <li> elements
+    lines = re.split(r'<br\s*/?>|\n|\r', html, flags=re.IGNORECASE)
+    new_html = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Replace leading markers with <li>, preserve surrounding tags if possible
+        line = re.sub(r'^((?:<[^>]+>)*)\s*[•\-\*]+\s*', r'\1', line)
+        new_html.append(f'<li>{line}</li>')
+    html = '<ul>' + ''.join(new_html) + '</ul>'
 
-    # Try to split on newlines or bullet chars in the PLAIN text,
-    # then map positions back to HTML — simpler: split HTML on <br> / \n
-    br_split = re.split(r'<br\s*/?>', html, flags=re.IGNORECASE)
-    for chunk in br_split:
-        # Further split on leading • or - in plain-text representation
-        plain = re.sub(r'<[^>]+>', '', chunk)
-        sub_chunks = re.split(r'\n|\r', plain)
-        for sub in sub_chunks:
-            stripped = sub.strip().lstrip('•\-* ').strip()
-            if stripped:
-                # Re-extract the HTML that corresponds to this sub-chunk
-                # For simplicity, process the whole chunk's HTML inline styles
-                inner_html = chunk  # may span multiple sub-chunks; acceptable
-                converted = _html_to_latex(inner_html)
-                # Now strip any leading bullet chars from the converted result
-                converted = re.sub(r'^[•\-\*]+\s*', '', converted).strip()
-                if converted:
-                    html_chunks.append(converted)
-                break  # avoid duplicates for multi-sub-chunk
-
-    if html_chunks:
-        return '\n'.join(rf'\item {c}' for c in html_chunks)
-
-    # 3. Fallback: treat entire content as single paragraph item
-    converted = _html_to_latex(html)
-    if converted:
-        return rf'\item {converted}'
-    return ''
+    # Now run the whole HTML through the builder
+    return _html_to_latex(html)
 
 
 def _is_empty(val: str) -> bool:
@@ -294,64 +288,114 @@ JD Context:
 """
 
 
-def fill_missing_sections(sections: dict, api_key: Optional[str] = None) -> dict:
+def fill_missing_sections(sections: dict, template_used: Optional[str] = None, 
+                           api_key: Optional[str] = None, db: Session | None = None, 
+                           user_id: UUID | None = None) -> dict:
     if not api_key:
         return sections
-    client = Groq(api_key=api_key)
+        
+    # ALLOW auto-fill even with templates, but ensure it uses the new intelligent prompts.
+    # We only skip if the user has ALREADY provided substantial content (2+ sections).
+    header_keys = {"Hiring Title", "Experience", "Location", "Mode of Work"}
+    existing_body = [k for k in sections.keys() if k not in header_keys and not _is_empty(str(sections.get(k, "")))]
+    
+    # If they have at least 3 body sections, assume they know what they want and skip auto-fill
+    if len(existing_body) >= 3: 
+        return sections
+
     filled = dict(sections)
     context_str = json.dumps(
-        {k: _strip_html(v) for k, v in sections.items() if not _is_empty(v)},
+        {k: _strip_html(v) for k, v in sections.items() if not _is_empty(str(v))},
         indent=2,
     )
     for section in REQUIRED_SECTIONS:
-        if _is_empty(sections.get(section, '')):
+        if _is_empty(str(filled.get(section, ''))):
             logger.info('Auto-filling: %s', section)
-            try:
-                resp = client.chat.completions.create(
-                    model='llama-3.3-70b-versatile',
-                    messages=[{'role': 'user', 'content': FILL_PROMPT.format(
-                        section=section, context=context_str
-                    )}],
-                    temperature=0.3,
-                )
-                filled[section] = resp.choices[0].message.content.strip()
-            except Exception as e:
-                logger.warning("Could not fill '%s': %s", section, e)
+            filled[section] = _llm(FILL_PROMPT.format(section=section, context=context_str), "", 
+                                   temperature=0.3, api_key=api_key, db=db, user_id=user_id, tag="PDF Auto-Fill")
     return filled
+
 
 
 # ─── LaTeX Rendering ─────────────────────────────────────────────────────────
 
-def render_latex(jd_content: dict, template_id: str = 't1_classic', accent_color: str = '') -> str:
+def render_latex(jd_content: dict, template_id: str = 't1_classic', accent_color: str = '', 
+                 api_key: Optional[str] = None, db: Session | None = None, 
+                 user_id: UUID | None = None) -> str:
     if template_id not in TEMPLATE_CATALOG:
         template_id = 't1_classic'
     template_file = TEMPLATE_CATALOG[template_id]['file']
     sections = jd_content.get('sections', {})
 
-    about_default = (
-        'Wissen Technology is a specialized global technology company that delivers '
-        r'high-end consulting for organizations in the Banking \& Finance, Telecom, '
-        'and Healthcare domains.'
-    )
+    # 1. Dynamic Mapping via AI (No Hardcoding)
+    struct_hash = hash(tuple(sorted(sections.keys())))
+    mapping = _MAPPING_CACHE.get(struct_hash)
+    
+    if not mapping and api_key:
+        res = _llm_json(LATEX_MAPPING_PROMPT, 
+                        json.dumps({k: "..." for k in sections.keys()}),
+                        api_key=api_key, db=db, user_id=user_id, tag="PDF Mapping")
+        if res and "hiring_title_key" in res:
+            mapping = {
+                "hiring_title_key": res.get("hiring_title_key", "Hiring Title"),
+                "metadata_keys": res.get("metadata_keys", []),
+                "body_keys": res.get("body_keys", [])
+            }
+            _MAPPING_CACHE[struct_hash] = mapping
 
-    location_raw = sections.get('Location', 'Bangalore, India')
-    location = _escape_latex(location_raw.split('/')[0].strip())
-    mode_raw = sections.get('Mode of Work', 'Full-Time')
-    mode = _escape_latex(mode_raw.split('/')[0].strip())
+    if not mapping:
+        mapping = {"hiring_title_key": "Hiring Title", "metadata_keys": [], "body_keys": []}
 
+    # 2. Heuristic Fallback if AI mapping is empty
+    if not mapping["metadata_keys"] and not mapping["body_keys"]:
+        # Title is the first key or 'Hiring Title'
+        mapping["hiring_title_key"] = 'Hiring Title' if 'Hiring Title' in sections else list(sections.keys())[0] if sections else 'Hiring Title'
+        
+        # Short values go to metadata
+        for k, v in sections.items():
+            if k == mapping["hiring_title_key"]: continue
+            text_val = _strip_html(str(v))
+            if len(text_val) < 60 and len(mapping["metadata_keys"]) < 4:
+                mapping["metadata_keys"].append(k)
+            else:
+                mapping["body_keys"].append(k)
+
+    # 3. Pull actual content using the mapped keys
     ctx = {
-        'hiring_title':    _html_to_latex(sections.get('Hiring Title', 'Job Description')),
-        'location':        location,
-        'job_type':        mode or 'Full-Time',
-        'experience':      _escape_latex(sections.get('Experience', 'N/A')),
-        'mode_of_work':    mode,
-        'about_wissen':    _html_to_latex(sections.get('About Wissen Technology', '')) or about_default,
-        'job_summary':     _html_to_latex(sections.get('Job Summary', '')),
-        'responsibilities': _bullets_to_items(sections.get('Key Responsibilities', '')),
-        'qualifications':   _bullets_to_items(sections.get('Qualifications and Required Skills', '')),
-        'good_to_have':     _bullets_to_items(sections.get('Good to Have Skills', '')),
-        'soft_skills':      _bullets_to_items(sections.get('Soft Skills', '')),
+        'hiring_title': _html_to_latex(str(sections.get(mapping["hiring_title_key"], 'Job Description'))),
+        'metadata':     [],
+        'body_sections': []
     }
+
+    for k in mapping["metadata_keys"]:
+        val = sections.get(k, '')
+        if val:
+            ctx['metadata'].append({
+                'label': _escape_latex(k),
+                'value': _escape_latex(str(val))
+            })
+            # Legacy slug support
+            ctx[k.lower().replace(' ', '_')] = _escape_latex(str(val))
+
+    for k in mapping["body_keys"]:
+        if k == mapping["hiring_title_key"] or k in mapping["metadata_keys"]:
+            continue
+        content = sections.get(k)
+        if not content or _is_empty(str(content)):
+            continue
+            
+        render_as_list = False
+        # Aggressive list detection
+        if any(bullet in str(content) for bullet in ["•", "-", "*", "<li>"]):
+            render_as_list = True
+        
+        ctx['body_sections'].append({
+            'title': _html_to_latex(str(k)).upper(),
+            'content': _bullets_to_items(str(content)) if render_as_list else _html_to_latex(str(content)),
+            'is_list': render_as_list
+        })
+
+
 
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -365,6 +409,21 @@ def render_latex(jd_content: dict, template_id: str = 't1_classic', accent_color
     )
     latex_src = env.get_template(template_file).render(**ctx)
 
+    # Ensure required packages are present
+    packages = [
+        r'\usepackage[T1]{fontenc}',
+        r'\usepackage[normalem]{ulem}'
+    ]
+    for pkg in packages:
+        if pkg.split('[')[0] not in latex_src and pkg not in latex_src:
+            latex_src = re.sub(
+                r'(\\documentclass\[[^\]]*\]\{[^}]+\}|\\documentclass\{[^}]+\})',
+                rf'\1\n{pkg}',
+                latex_src,
+                count=1
+            )
+
+
     # ── Accent colour injection ──────────────────────────────────────────────
     # Convert hex (#2563EB or 2563EB) → R,G,B values and replace the first
     # \definecolor{primary}{...} so every template respects the chosen tint.
@@ -374,13 +433,17 @@ def render_latex(jd_content: dict, template_id: str = 't1_classic', accent_color
             r = int(hex_clean[0:2], 16)
             g = int(hex_clean[2:4], 16)
             b = int(hex_clean[4:6], 16)
-            new_def = rf'\definecolor{{primary}}{{RGB}}{{{r},{g},{b}}}'
-            # Use lambda so re.sub never treats backslashes in replacement as escape sequences
+            
+            def _repl(m):
+                color_name = m.group(1)
+                return rf'\definecolor{{{color_name}}}{{RGB}}{{{r},{g},{b}}}'
+
+            # Use lambda or function so re.sub never treats backslashes in replacement as escape sequences
             latex_src = re.sub(
-                r'\\definecolor\{primary\}\{[^}]+\}\{[^}]+\}',
-                lambda _: new_def,
+                r'\\definecolor\s*\{(primary|headingblue)\}\s*\{[^}]+\}\s*\{[^}]+\}',
+                _repl,
                 latex_src,
-                count=1,
+                count=0, # Replace all occurrences
             )
 
     return latex_src
@@ -393,19 +456,30 @@ def compile_pdf(
     template_id: str = 't1_classic',
     api_key: Optional[str] = None,
     accent_color: str = '',
+    db: Session | None = None,
+    user_id: UUID | None = None,
 ) -> bytes:
-    if not shutil.which('pdflatex'):
-        raise RuntimeError(
-            'pdflatex not found in PATH. '
-            'Install MiKTeX (Windows) or TeX Live (Linux/Mac).'
-        )
+    # ── Resolve pdflatex path dynamically (works on Render + Local) ──────────
+    pdflatex_bin = shutil.which('pdflatex')
+    if not pdflatex_bin:
+        # Fallback to absolute MiKTeX path for local Windows development
+        import os
+        if os.name == 'nt':
+            pdflatex_bin = r"C:\Program Files\MiKTeX\miktex\bin\x64\pdflatex.exe"
+        else:
+            raise RuntimeError("pdflatex not found in PATH and OS is not Windows.")
+
 
     sections = jd_content.get('sections', {})
-    enriched = fill_missing_sections(sections, api_key=api_key)
+    template_used = jd_content.get('template_used') or ''
+    enriched = fill_missing_sections(sections, template_used=template_used, api_key=api_key, db=db, user_id=user_id)
     latex_source = render_latex(
         {**jd_content, 'sections': enriched},
         template_id=template_id,
         accent_color=accent_color,
+        api_key=api_key,
+        db=db,
+        user_id=user_id,
     )
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -413,20 +487,36 @@ def compile_pdf(
         pdf_path = Path(tmp) / 'jd_output.pdf'
         tex_path.write_text(latex_source, encoding='utf-8')
 
-        for _ in range(2):
+        result = None
+        for pass_num in range(1, 3):
             result = subprocess.run(
-                ['pdflatex', '-interaction=nonstopmode',
-                 f'-output-directory={tmp}', str(tex_path)],
+                [
+                    pdflatex_bin,
+                    '-interaction=nonstopmode',
+                    f'-output-directory={tmp}',
+                    str(tex_path),
+                ],
                 capture_output=True, text=True, timeout=120,
-                cwd=str(TEMPLATES_DIR),   # so image.jpg / logo.png are found
+                cwd=str(TEMPLATES_DIR),  # so image.jpg / logo.png are found
             )
+            if result.returncode != 0 and not pdf_path.exists():
+                break  # fast-fail — no point in second pass
 
         if not pdf_path.exists():
-            logger.error('pdflatex stdout:\n%s', result.stdout[-4000:])
-            logger.error('pdflatex stderr:\n%s', result.stderr[-1000:])
+            # Pull the actual ! error lines from the log
+            error_lines = [
+                line for line in (result.stdout or '').splitlines()
+                if line.startswith('!') or 'Error' in line
+            ][:30]
+            error_summary = '\n'.join(error_lines) if error_lines else (result.stdout or '')[-3000:]
+
+            logger.error('pdflatex failed (exit %d)', result.returncode)
+            logger.error('stdout:\n%s', (result.stdout or '')[-6000:])
+            logger.error('stderr:\n%s', result.stderr or '')
+
             raise RuntimeError(
-                f'pdflatex failed (exit {result.returncode}). '
-                f'Check backend logs.\n\n{result.stdout[-2000:]}'
+                f'pdflatex failed (exit {result.returncode}).\n'
+                f'LaTeX errors:\n{error_summary}'
             )
 
         return pdf_path.read_bytes()

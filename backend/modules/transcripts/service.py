@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from backend.core.groq_client import LLAMA_MODEL, get_groq_client
+from backend.core.groq_client import LLAMA_MODEL, get_groq_client, _llm, _llm_json
 from backend.core.prompts import CLEANUP_PROMPT
 from backend.modules.transcripts.model import Transcript
 from backend.modules.transcripts.schema import TranscriptCreate
@@ -27,9 +27,27 @@ def extract_audio(video_path: Path) -> Path:
     temp_dir = tempfile.gettempdir()
     audio_path = Path(temp_dir) / f"{video_path.stem}_ext.mp3"
     
+    # ── Resolve FFmpeg path dynamically (Priority: PATH > Standard User Paths) ──
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        # Fallback for common Windows download paths
+        common_paths = [
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+            r"C:\ffmpeg\ffmpeg-2026-04-19-git-de18feb0f0-essentials_build\bin\ffmpeg.exe",
+            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+        ]
+        for p in common_paths:
+            if Path(p).exists():
+                ffmpeg_bin = p
+                break
+    
+    if not ffmpeg_bin:
+        logger.error("FFmpeg not found in PATH or standard fallbacks.")
+        raise RuntimeError("FFmpeg is missing. Please install it and restart the server.")
+
     logger.info(f"Extracting audio using FFmpeg: {video_path.name}")
     cmd = [
-        "ffmpeg", "-y", "-i", str(video_path), 
+        ffmpeg_bin, "-y", "-i", str(video_path), 
         "-vn", "-acodec", "libmp3lame", "-q:a", "2", 
         str(audio_path)
     ]
@@ -88,6 +106,8 @@ def create_transcript(db: Session, user_id: UUID, payload: TranscriptCreate) -> 
     return transcript
 
 
+from backend.modules.auth.model import User, TokenLog
+
 def clean_transcript(db: Session, transcript: Transcript, api_key: str | None = None) -> Transcript:
     """Calls Groq LLaMA to normalize a raw transcript to clean English."""
     logger.info(f"Cleaning transcript {transcript.id}...")
@@ -98,24 +118,11 @@ def clean_transcript(db: Session, transcript: Transcript, api_key: str | None = 
         if userobj:
             api_key = decrypt_key(userobj.groq_api_key)
 
-    client = get_groq_client(api_key)
-    try:
-        resp = client.chat.completions.create(
-            model=LLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": CLEANUP_PROMPT},
-                {"role": "user", "content": transcript.raw_text},
-            ],
-            temperature=0.1,
-        )
-        clean_text = resp.choices[0].message.content.strip()
-        
-        # If the LLM returned nothing or stripped the text entirely, fallback to raw
-        transcript.clean_text = clean_text if clean_text else transcript.raw_text
-    except Exception as e:
-        logger.error(f"Failed to clean transcript: {e}")
-        transcript.clean_text = transcript.raw_text
-        
+    clean_text = _llm(CLEANUP_PROMPT, transcript.raw_text, temperature=0.1, 
+                      api_key=api_key, db=db, user_id=transcript.user_id, tag="Clean Transcript")
+    
+    # If the LLM returned nothing or stripped the text entirely, fallback to raw
+    transcript.clean_text = clean_text if clean_text else transcript.raw_text
     transcript.status = "cleaned"
     db.commit()
     db.refresh(transcript)

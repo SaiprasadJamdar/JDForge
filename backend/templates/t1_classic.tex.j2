@@ -3,6 +3,7 @@
 \usepackage[margin=0.7in]{geometry}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage[normalem]{ulem}
 \usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{helvet}
@@ -28,58 +29,27 @@
 \vspace{6pt}
 
 {\color{textgray}
-\textbf{Location:} << location >> \quad\textbullet\quad
-\textbf{Experience:} << experience >> \quad\textbullet\quad
-\textbf{Mode:} << mode_of_work >>
+<% for meta in metadata %>
+\textbf{<< meta.label >>:} << meta.value >> <% if not loop.last %> \quad\textbullet\quad <% endif %>
+<% endfor %>
 }
 
 \vspace{8pt}
 \hrule
 \vspace{10pt}
 
-\section*{About Wissen Technology}
-{\color{textgray} << about_wissen >> }
 
-\section*{Job Summary}
-{\color{textgray} << job_summary >> }
-
-<% if responsibilities %>
-\section*{Key Responsibilities}
+<% for section in body_sections %>
+\section*{<< section.title >>}
 {\color{textgray}
-\begin{itemize}
-<< responsibilities >>
-\end{itemize}
+  <% if section.is_list %>
+    \begin{itemize}
+    << section.content >>
+    \end{itemize}
+  <% else %>
+    << section.content >>
+  <% endif %>
 }
-<% endif %>
-
-<% if qualifications %>
-\section*{Qualifications and Required Skills}
-{\color{textgray}
-\begin{itemize}
-<< qualifications >>
-\end{itemize}
-}
-<% endif %>
-
-<% if good_to_have %>
-\section*{Good to Have Skills}
-{\color{textgray}
-\begin{itemize}
-<< good_to_have >>
-\end{itemize}
-}
-<% endif %>
-
-<% if soft_skills %>
-\section*{Soft Skills}
-{\color{textgray}
-\begin{itemize}
-<< soft_skills >>
-\end{itemize}
-}
-<% endif %>
-
-\section*{Wissen Sites}
-{\color{textgray} India \quad | \quad USA \quad | \quad UK \quad | \quad Germany }
+<% endfor %>
 
 \end{document}

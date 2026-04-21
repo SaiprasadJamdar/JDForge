@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, Mic, MicOff, Search, FileText, FileAudio, File, Loader2, Pencil, Trash2 } from "lucide-react"
+import { Upload, Mic, MicOff, Search, FileText, FileAudio, File, Loader2, Pencil, Trash2, Sparkles, X } from "lucide-react"
 import { fetchApi } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 import {
@@ -44,6 +44,12 @@ export default function DashboardPage() {
   // JD Table State
   const [jds, setJds] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([])
+  const [isCheckingGaps, setIsCheckingGaps] = useState(false)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [gapAnswers, setGapAnswers] = useState<Record<number, string>>({})
+  const [isGapFlowActive, setIsGapFlowActive] = useState(false)
+  const [localAnswer, setLocalAnswer] = useState("")
 
   // Authentication Redirect
   useEffect(() => {
@@ -178,6 +184,65 @@ export default function DashboardPage() {
     }
   }
 
+  const handleCheckGaps = async () => {
+    if (!pastedText.trim()) return
+    setIsCheckingGaps(true)
+    try {
+      const res = await fetchApi("/jds/clarify", {
+        method: "POST",
+        body: JSON.stringify({ 
+          text: pastedText,
+          template: templateText.trim() || null
+        })
+      })
+      if (res.questions && res.questions.length > 0) {
+        setClarificationQuestions(res.questions)
+        setCurrentQuestionIndex(0)
+        setGapAnswers({})
+        setIsGapFlowActive(true)
+        toast.info("Identified 6 critical gaps to improve your JD.")
+      } else {
+        toast.success("Your input seems comprehensive!")
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to analyze text for gaps.")
+    } finally {
+      setIsCheckingGaps(false)
+    }
+  }
+
+  const handleFinishGapFlow = () => {
+    let extraNotes = "\n\n--- ADDITIONAL CLARIFICATIONS ---\n"
+    let added = false
+    Object.entries(gapAnswers).forEach(([idx, answer]) => {
+      const q = clarificationQuestions[parseInt(idx)]
+      if (answer && answer.trim()) {
+        extraNotes += `Q: ${q}\nA: ${answer}\n\n`
+        added = true
+      }
+    })
+
+    if (added) {
+      setPastedText(prev => prev + extraNotes)
+      toast.success("JD text updated with your clarifications!")
+    }
+    setIsGapFlowActive(false)
+    setClarificationQuestions([])
+  }
+
+  const handleNextQuestion = (answer?: string) => {
+    if (answer !== undefined) {
+      setGapAnswers(prev => ({ ...prev, [currentQuestionIndex]: answer }))
+    }
+    
+    if (currentQuestionIndex < clarificationQuestions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1)
+    } else {
+      handleFinishGapFlow()
+    }
+  }
+
   const handleRemoveFile = () => {
     setSelectedFile(null)
     if (fileInputRef.current) {
@@ -287,6 +352,19 @@ export default function DashboardPage() {
                         className="w-full h-full p-5 pb-16 bg-[#F8FAFC] border border-slate-200 rounded-2xl resize-none outline-none focus:ring-2 focus:ring-[#EAF3FF] focus:border-[#2563EB] transition-all"
                       ></textarea>
                       
+                      <div className="absolute top-4 right-4 flex gap-2">
+                        <Button 
+                          onClick={handleCheckGaps}
+                          disabled={isCheckingGaps || !pastedText.trim() || isGapFlowActive}
+                          variant="outline" 
+                          size="sm" 
+                          className="rounded-full bg-white text-blue-600 border-blue-100 hover:border-blue-200 shadow-sm transition-all text-[10px] font-bold uppercase tracking-wider h-8"
+                        >
+                          {isCheckingGaps ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 text-blue-500 mr-1.5" />}
+                          Identify Gaps
+                        </Button>
+                      </div>
+
                       <div className="absolute bottom-4 left-4 flex gap-2">
                         <Button 
                           onClick={toggleRecording}
@@ -301,6 +379,66 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
+
+                    {isGapFlowActive && clarificationQuestions.length > 0 && (
+                      <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-6 shadow-sm animate-in fade-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-[#FDE68A] text-[#92400E] text-[10px] font-black">
+                              {currentQuestionIndex + 1}
+                            </span>
+                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#92400E]">
+                              Refining Details ({currentQuestionIndex + 1}/6)
+                            </h4>
+                          </div>
+                          <button 
+                            onClick={handleFinishGapFlow}
+                            className="text-[#D97706] hover:text-[#92400E] transition-colors p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <p className="text-sm font-bold text-[#78350F] mb-4 leading-tight">
+                          {clarificationQuestions[currentQuestionIndex]}
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                          <textarea 
+                            value={localAnswer}
+                            onChange={(e) => setLocalAnswer(e.target.value)}
+                            placeholder="Enter your answer or skip..."
+                            className="w-full bg-white border border-[#FDE68A] rounded-xl p-3 text-sm text-[#78350F] outline-none focus:ring-2 focus:ring-[#FEF3C7] transition-all min-h-[60px] placeholder:text-[#FBBF24]/50"
+                          />
+                          
+                          <div className="flex items-center justify-between gap-3">
+                            <button 
+                              onClick={() => { handleNextQuestion(); setLocalAnswer(""); }}
+                              className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#92400E] hover:bg-[#FEF3C7] rounded-lg transition-all"
+                            >
+                              Skip Question
+                            </button>
+                            
+                            <div className="flex gap-2">
+                              {currentQuestionIndex > 0 && (
+                                <button 
+                                  onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
+                                  className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#92400E] hover:bg-[#FEF3C7] rounded-lg transition-all"
+                                >
+                                  Back
+                                </button>
+                              )}
+                              <Button 
+                                onClick={() => { handleNextQuestion(localAnswer); setLocalAnswer(""); }}
+                                className="bg-[#D97706] hover:bg-[#92400E] text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm"
+                              >
+                                {currentQuestionIndex === clarificationQuestions.length - 1 ? "Finish & Update" : "Next Details"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex flex-col gap-2">
                        <button onClick={() => setShowTemplateInput(!showTemplateInput)} className="text-left flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-blue-600 uppercase tracking-widest transition-colors w-fit">
