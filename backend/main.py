@@ -23,22 +23,10 @@ app = FastAPI(
 
 settings = get_settings()
 
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-
-if settings.frontend_url:
-    # Allow comma-separated origins (e.g. localhost,vercel-app)
-    extra_origins = [o.strip().rstrip("/") for o in settings.frontend_url.split(",")]
-    for o in extra_origins:
-        if o not in origins:
-            origins.append(o)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -46,7 +34,17 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    create_all_tables()
+    settings = get_settings()
+    db_type = "Postgres/Supabase" if "supabase" in settings.database_url or "aws" in settings.database_url else "Local/SQLite"
+    print(f"\n[STARTUP] Connecting to {db_type} database...")
+    
+    try:
+        create_all_tables()
+        print("[STARTUP] Database connection and table sync successful.\n")
+    except Exception as e:
+        print(f"[STARTUP] DATABASE CONNECTION FAILED: {e}")
+        # We don't exit so the app can still serve docs/health, but major routes will fail
+        
     # Start the keep-alive pinger as a background task
     asyncio.create_task(keep_alive_task())
 

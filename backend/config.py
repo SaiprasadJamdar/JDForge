@@ -44,4 +44,8 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    # Normalize Supabase URLs (SQLAlchemy 1.4+ requires 'postgresql://', but Supabase often gives 'postgres://')
+    if settings.database_url.startswith("postgres://"):
+        settings.database_url = settings.database_url.replace("postgres://", "postgresql://", 1)
+    return settings
