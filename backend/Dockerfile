@@ -11,14 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-recommended \
     texlive-fonts-recommended \
     texlive-fonts-extra \
-    # needing tikz, tcolorbox, tabularx (our templates)
+    # Packages for advanced styling, underlining, and diagrams
     texlive-pictures \
+    texlive-plain-generic \
     # Font encoding support
     lmodern \
     # Audio processing
     ffmpeg \
     # Misc
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # ─── Python deps ──────────────────────────────────────────────────────────────
